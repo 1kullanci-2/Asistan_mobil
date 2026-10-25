@@ -1,6 +1,5 @@
 package com.edith.asistan
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -11,17 +10,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,8 +27,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -45,48 +40,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
 
-/** "Liquid glass" yüzeyi: yarı saydam dikey degrade + parlak ince kenar + yumuşak gölge. */
-fun Modifier.cam(sekil: Shape = RoundedCornerShape(24.dp), opak: Float = 0.55f): Modifier = this
-    .shadow(10.dp, sekil, clip = false, ambientColor = Color(0x22000000), spotColor = Color(0x22000000))
+/** Düz, yarı koyu yüzey: degrade, gölge ya da parıltı yok. */
+fun Modifier.yuzey(sekil: Shape = RoundedCornerShape(20.dp), renk: Color = Yuzey): Modifier = this
     .clip(sekil)
-    .background(
-        Brush.verticalGradient(
-            listOf(Color.White.copy(alpha = opak + 0.2f), Color.White.copy(alpha = opak - 0.15f))
-        )
-    )
-    .border(
-        1.dp,
-        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.2f))),
-        sekil
-    )
-
-@Composable
-fun CamArkaPlan(icerik: @Composable BoxScope.() -> Unit) {
-    fun orb(renk: Color) = Brush.radialGradient(listOf(renk, Color.Transparent))
-    Box(Modifier.fillMaxSize().background(Krem)) {
-        Box(Modifier.size(360.dp).offset((-100).dp, (-70).dp).background(orb(Turuncu.copy(alpha = 0.45f)), CircleShape))
-        Box(
-            Modifier.size(320.dp).align(Alignment.CenterEnd).offset(120.dp, 0.dp)
-                .background(orb(Color(0xFFF2B27A).copy(alpha = 0.5f)), CircleShape)
-        )
-        Box(
-            Modifier.size(340.dp).align(Alignment.BottomStart).offset((-90).dp, 100.dp)
-                .background(orb(Color(0xFFE9C9A8).copy(alpha = 0.65f)), CircleShape)
-        )
-        icerik()
-    }
-}
+    .background(renk)
+    .border(1.dp, Kenar, sekil)
 
 private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "Günaydın"
@@ -96,41 +62,46 @@ private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR
 }
 
 @Composable
-fun Uygulama(vm: SohbetVM) {
-    var ayarAcik by remember { mutableStateOf(false) }
-    CamArkaPlan {
+fun Uygulama(onMik: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Zemin)) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-            UstCubuk { ayarAcik = true }
-            Sohbet(vm, Modifier.weight(1f))
-            GirisCubugu(vm)
+            UstCubuk { Motor.ayarAcik = true }
+            Sohbet(Modifier.weight(1f))
+            DurumSatiri()
+            GirisCubugu(onMik)
         }
-        if (ayarAcik) AyarlarSayfasi(vm.ayarlar) { ayarAcik = false }
+        if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
     }
 }
 
 @Composable
 fun UstCubuk(ayarlar: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("E.D.I.T.H", color = Murekkep, fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text("E.D.I.T.H", color = Metin, fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         Box(Modifier.weight(1f))
-        Box(
-            Modifier.size(42.dp).cam(CircleShape, 0.45f).clickable(onClick = ayarlar),
-            contentAlignment = Alignment.Center
-        ) { Text("⚙", color = Murekkep, fontSize = 20.sp) }
+        Text(
+            "Ayarlar",
+            Modifier.yuzey(RoundedCornerShape(50)).clickable(onClick = ayarlar).padding(horizontal = 16.dp, vertical = 9.dp),
+            color = Metin, fontSize = 14.sp
+        )
     }
 }
 
 @Composable
-fun Sohbet(vm: SohbetVM, mod: Modifier) {
+fun Sohbet(mod: Modifier) {
     val liste = rememberLazyListState()
-    val adet = vm.mesajlar.size + (if (vm.yukleniyor) 1 else 0) + (if (vm.hata != null) 1 else 0)
-    LaunchedEffect(adet) { if (adet > 0) liste.animateScrollToItem(adet - 1) }
+    val canliVar = Motor.faz == Faz.KOMUT && Motor.canli.isNotBlank()
+    val adet = Motor.mesajlar.size + (if (Motor.faz == Faz.ISLE) 1 else 0) + (if (canliVar) 1 else 0) +
+        (if (Motor.hata != null) 1 else 0)
+    LaunchedEffect(adet, Motor.canli) { if (adet > 0) liste.animateScrollToItem(adet - 1) }
 
-    if (vm.mesajlar.isEmpty() && !vm.yukleniyor) {
+    if (Motor.mesajlar.isEmpty() && Motor.faz != Faz.ISLE && !canliVar) {
         Box(mod.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(karsilama(), color = Murekkep, fontFamily = FontFamily.Serif, fontSize = 32.sp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(karsilama(), color = Metin, fontFamily = FontFamily.Serif, fontSize = 32.sp)
                 Text("E.D.I.T.H.'e hoş geldiniz", color = Soluk, fontFamily = FontFamily.Serif, fontSize = 17.sp)
+                Motor.indirme?.let { Text(it, color = Turuncu, fontSize = 13.sp) }
+                Motor.hata?.let { Text(it, color = Kirmizi, fontSize = 13.sp) }
             }
         }
         return
@@ -141,21 +112,23 @@ fun Sohbet(vm: SohbetVM, mod: Modifier) {
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        items(vm.mesajlar) { m -> if (m.kullanici) KullaniciBalonu(m.metin) else AsistanMetni(m.metin) }
-        if (vm.yukleniyor) item { Dusunuyor() }
-        vm.hata?.let { h -> item { Text(h, color = Color(0xFFB3382C), fontSize = 13.sp) } }
+        items(Motor.mesajlar) { m -> if (m.kullanici) KullaniciBalonu(m.metin, 1f) else AsistanMetni(m.metin) }
+        if (canliVar) item { KullaniciBalonu(Motor.canli, 0.6f) }
+        if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
+        Motor.indirme?.let { t -> item { Text(t, color = Turuncu, fontSize = 13.sp) } }
+        Motor.hata?.let { h -> item { Text(h, color = Kirmizi, fontSize = 13.sp) } }
     }
 }
 
 @Composable
-fun KullaniciBalonu(metin: String) {
+fun KullaniciBalonu(metin: String, alfa: Float) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Text(
             metin,
-            Modifier.widthIn(max = 300.dp)
-                .cam(RoundedCornerShape(22.dp, 22.dp, 6.dp, 22.dp), 0.4f)
+            Modifier.widthIn(max = 300.dp).alpha(alfa)
+                .yuzey(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            color = Murekkep, fontSize = 16.sp
+            color = Metin, fontSize = 16.sp
         )
     }
 }
@@ -163,7 +136,7 @@ fun KullaniciBalonu(metin: String) {
 @Composable
 fun AsistanMetni(metin: String) {
     SelectionContainer {
-        Text(metin, color = Murekkep, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
+        Text(metin, color = Metin, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
     }
 }
 
@@ -175,10 +148,25 @@ fun Dusunuyor() {
 }
 
 @Composable
-fun GirisCubugu(vm: SohbetVM) {
+fun DurumSatiri() {
+    val (yazi, renk) = when (Motor.faz) {
+        Faz.KOMUT -> "Dinleniyor" to Yesil
+        Faz.ISLE -> "Düşünüyor…" to Turuncu
+        Faz.KONUS -> "Konuşuyor" to Turuncu
+        Faz.BOS -> "Bekleniyor" to Soluk
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(yazi, color = renk, fontSize = 13.sp)
+        if (Motor.mikAcik && Motor.faz == Faz.BOS) Text("  ·  \"hey edit\" de", color = Soluk, fontSize = 13.sp)
+    }
+}
+
+@Composable
+fun GirisCubugu(onMik: () -> Unit) {
     var metin by remember { mutableStateOf("") }
     Row(
-        Modifier.fillMaxWidth().padding(14.dp).cam(RoundedCornerShape(32.dp), 0.5f)
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
+            .yuzey(RoundedCornerShape(32.dp))
             .padding(start = 6.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -194,47 +182,30 @@ fun GirisCubugu(vm: SohbetVM) {
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 cursorColor = Turuncu,
-                focusedTextColor = Murekkep,
-                unfocusedTextColor = Murekkep
+                focusedTextColor = Metin,
+                unfocusedTextColor = Metin
             )
         )
         Box(
-            Modifier.size(42.dp).clip(CircleShape).background(Turuncu).clickable {
-                if (!vm.yukleniyor && metin.isNotBlank()) {
-                    vm.gonder(metin)
+            Modifier.height(42.dp).clip(RoundedCornerShape(50))
+                .background(if (Motor.mikAcik) Yesil else Kenar)
+                .clickable(onClick = onMik).padding(horizontal = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (Motor.mikAcik) "Mik açık" else "Mikrofon",
+                color = if (Motor.mikAcik) Zemin else Metin, fontSize = 13.sp, fontWeight = FontWeight.Medium
+            )
+        }
+        Box(Modifier.padding(start = 8.dp))
+        Box(
+            Modifier.height(42.dp).widthIn(min = 42.dp).clip(CircleShape).background(Turuncu).clickable {
+                if (metin.isNotBlank()) {
+                    Motor.gonder(metin, sesli = false)
                     metin = ""
                 }
             },
             contentAlignment = Alignment.Center
-        ) { Text("↑", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
-    }
-}
-
-@Composable
-fun AyarlarSayfasi(ayar: Ayarlar, kapat: () -> Unit) {
-    BackHandler(onBack = kapat)
-    var anahtar by remember { mutableStateOf(ayar.apiKey) }
-    Column(
-        Modifier.fillMaxSize().background(Krem.copy(alpha = 0.94f))
-            .statusBarsPadding().navigationBarsPadding().imePadding().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("‹", Modifier.clickable(onClick = kapat).padding(end = 14.dp), color = Turuncu, fontSize = 34.sp)
-            Text("Ayarlar", color = Murekkep, fontFamily = FontFamily.Serif, fontSize = 26.sp)
-        }
-        Column(Modifier.fillMaxWidth().cam().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Gemini API anahtarı", color = Murekkep, fontWeight = FontWeight.SemiBold)
-            OutlinedTextField(
-                value = anahtar,
-                onValueChange = { anahtar = it; ayar.apiKey = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                placeholder = { Text("Google AI Studio anahtarı") },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Turuncu, cursorColor = Turuncu)
-            )
-            Text("Anahtar yalnızca bu telefonda saklanır, GitHub'a gitmez.", color = Soluk, fontSize = 12.sp)
-        }
+        ) { Text("↑", color = Zemin, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
     }
 }
