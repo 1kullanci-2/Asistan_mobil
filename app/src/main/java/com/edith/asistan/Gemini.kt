@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 
 data class Mesaj(val kullanici: Boolean, val metin: String)
 data class Cevap(val metin: String, val soru: Boolean)
+class KotaHatasi(mesaj: String) : RuntimeException(mesaj)
 data class GeminiArac(val ad: String, val aciklama: String, val sema: JSONObject?)
 
 object Gemini {
@@ -50,7 +51,7 @@ object Gemini {
         require(apiKey.isNotBlank()) { "Gemini API anahtarı girilmemiş (Ayarlar → Yapay zeka)." }
         val basit = ayar.modelYonlendirme && araclar.isEmpty() &&
             (BASIT.any { mesaj.lowercase().contains(it) } || mesaj.trim().split(" ").size <= 6)
-        val model = if (basit) ayar.modelHizli else ayar.modelKaliteli
+        var model = if (basit) ayar.modelHizli else ayar.modelKaliteli
 
         val icerik = JSONArray()
         (gecmis + Mesaj(true, mesaj)).forEach {
@@ -70,7 +71,18 @@ object Gemini {
                 .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", sistem()))))
             if (araclarJson != null) govde.put("tools", araclarJson)
 
-            val yanit = istekAt(apiKey, model, govde.toString())
+            val yanit = try {
+                istekAt(apiKey, model, govde.toString())
+            } catch (e: KotaHatasi) {
+                // Ücretsiz kota model başınadır: öbür modeli dene
+                val yedek = if (model == ayar.modelHizli) ayar.modelKaliteli else ayar.modelHizli
+                if (yedek == model) throw e
+                try {
+                    istekAt(apiKey, yedek, govde.toString()).also { model = yedek }
+                } catch (e2: KotaHatasi) {
+                    throw RuntimeException(e.message)
+                }
+            }
             val adayIcerik = yanit.getJSONArray("candidates").getJSONObject(0).optJSONObject("content")
                 ?: return@withContext Cevap("(Boş cevap geldi)", false)
             val parts = adayIcerik.optJSONArray("parts") ?: return@withContext Cevap("(Boş cevap geldi)", false)
@@ -114,7 +126,8 @@ object Gemini {
                     val s = r.body?.string().orEmpty()
                     if (r.isSuccessful) return JSONObject(s)
                     son = hataMetni(r.code, s)
-                    if (r.code != 503 && r.code != 429) throw RuntimeException(son)
+                    if (r.code == 429) throw KotaHatasi(kotaMetni(model, s))
+                    if (r.code != 503) throw RuntimeException(son)
                 }
             } catch (e: IOException) {
                 son = "Bağlantı hatası: ${e.message}"
@@ -164,6 +177,14 @@ object Gemini {
         val soru = soruIsareti.containsMatchIn(ham) ||
             soruSonu.containsMatchIn(ham.replace(kodBlogu, "").trim())
         return Cevap(ham.replace(soruIsareti, "").trim(), soru)
+    }
+
+    private fun kotaMetni(model: String, s: String): String {
+        val gunluk = s.contains("PerDay", true)
+        val bekle = Regex(""""retryDelay"\s*:\s*"(\d+)""").find(s)?.groupValues?.get(1)?.toIntOrNull()
+        return "Gemini kotası doldu ($model). " +
+            if (gunluk) "Bu günlük limit; yarın sıfırlanır. Ayarlar → Yapay zeka'dan başka bir model deneyebilir ya da ücretli plana geçebilirsin."
+            else "Dakikalık limit; ${bekle ?: 60} sn sonra tekrar dene."
     }
 
     private fun hataMetni(kod: Int, s: String): String {
