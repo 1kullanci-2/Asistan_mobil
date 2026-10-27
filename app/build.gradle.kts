@@ -12,8 +12,19 @@ android {
         applicationId = "com.edith.asistan"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.3"
+        // Her GitHub derlemesinde artar; telefon yeni APK'yı güncelleme olarak görür.
+        val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = 100 + run
+        versionName = "0.3.$run"
+    }
+    // Sabit imza: her derleme aynı anahtarla imzalanır, böylece üstüne kurulunca ayarlar silinmez.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("edith-imza.jks")
+            storePassword = "edith2026"
+            keyAlias = "edith"
+            keyPassword = "edith2026"
+        }
     }
     buildTypes {
         release { isMinifyEnabled = false }

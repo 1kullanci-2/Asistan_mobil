@@ -33,7 +33,7 @@ object Gemini {
             "tek başına [SORU] yaz; beklemiyorsan yazma. Şu an: $an (Türkiye saati)."
     }
 
-    private val istemci = OkHttpClient.Builder().callTimeout(90, TimeUnit.SECONDS).build()
+    private val istemci = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).callTimeout(120, TimeUnit.SECONDS).retryOnConnectionFailure(true).build()
     private val soruIsareti = Regex("""\[\s*SORU\s*]""", RegexOption.IGNORE_CASE)
     private val soruSonu = Regex("""\?[\s"'”)»*_]*$""")
     private val kodBlogu = Regex("```[\\s\\S]*?```")

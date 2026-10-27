@@ -47,6 +47,18 @@ class EdithOturum(baglam: Context) : VoiceInteractionSession(baglam) {
     override fun onCreate() {
         setTheme(R.style.Theme_EdithOturum)
         super.onCreate()
+        kilitUstu()
+    }
+
+    /** Pencere kilit ekranının üstünde görünsün (altında kalmasın). */
+    @Suppress("DEPRECATION")
+    private fun kilitUstu() {
+        runCatching {
+            window?.window?.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
     }
 
     override fun onCreateContentView(): View {
@@ -60,6 +72,7 @@ class EdithOturum(baglam: Context) : VoiceInteractionSession(baglam) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
+        kilitUstu()
         aktif = this
         Motor.init(context.applicationContext)
         if (Panel.kendimAcildi) {
