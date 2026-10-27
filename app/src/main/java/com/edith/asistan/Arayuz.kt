@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -48,11 +49,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
 
-/** Düz, yarı koyu yüzey: degrade, gölge ya da parıltı yok. */
-fun Modifier.yuzey(sekil: Shape = RoundedCornerShape(20.dp), renk: Color = Yuzey): Modifier = this
+/** Düz krem yüzey: degrade, gölge ya da parıltı yok. */
+fun Modifier.kart(sekil: Shape = RoundedCornerShape(22.dp), renk: Color = Krem): Modifier = this
     .clip(sekil)
     .background(renk)
-    .border(1.dp, Kenar, sekil)
+    .border(1.dp, KremKoyu, sekil)
 
 private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "Günaydın"
@@ -63,7 +64,7 @@ private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR
 
 @Composable
 fun Uygulama(onMik: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Zemin)) {
+    Box(Modifier.fillMaxSize().background(Visne)) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
             UstCubuk { Motor.ayarAcik = true }
             Sohbet(Modifier.weight(1f))
@@ -71,18 +72,37 @@ fun Uygulama(onMik: () -> Unit) {
             GirisCubugu(onMik)
         }
         if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
+        OnayDiyalogu()
     }
+}
+
+@Composable
+fun OnayDiyalogu() {
+    val o = Motor.onay ?: return
+    AlertDialog(
+        onDismissRequest = { Motor.onayCevap(false) },
+        containerColor = Krem,
+        title = { Text("Onay gerekiyor", color = MetinKoyu) },
+        text = { Text(o.soru, color = MetinKoyu) },
+        confirmButton = {
+            Text("Evet", Modifier.clickable { Motor.onayCevap(true) }.padding(12.dp), color = Vurgu, fontWeight = FontWeight.SemiBold)
+        },
+        dismissButton = {
+            Text("Hayır", Modifier.clickable { Motor.onayCevap(false) }.padding(12.dp), color = SolukKoyu)
+        }
+    )
 }
 
 @Composable
 fun UstCubuk(ayarlar: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("E.D.I.T.H", color = Metin, fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text("E.D.I.T.H", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         Box(Modifier.weight(1f))
         Text(
             "Ayarlar",
-            Modifier.yuzey(RoundedCornerShape(50)).clickable(onClick = ayarlar).padding(horizontal = 16.dp, vertical = 9.dp),
-            color = Metin, fontSize = 14.sp
+            Modifier.clip(RoundedCornerShape(50)).background(Krem).clickable(onClick = ayarlar)
+                .padding(horizontal = 16.dp, vertical = 9.dp),
+            color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.Medium
         )
     }
 }
@@ -98,10 +118,10 @@ fun Sohbet(mod: Modifier) {
     if (Motor.mesajlar.isEmpty() && Motor.faz != Faz.ISLE && !canliVar) {
         Box(mod.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(karsilama(), color = Metin, fontFamily = FontFamily.Serif, fontSize = 32.sp)
-                Text("E.D.I.T.H.'e hoş geldiniz", color = Soluk, fontFamily = FontFamily.Serif, fontSize = 17.sp)
-                Motor.indirme?.let { Text(it, color = Turuncu, fontSize = 13.sp) }
-                Motor.hata?.let { Text(it, color = Kirmizi, fontSize = 13.sp) }
+                Text(karsilama(), color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 32.sp)
+                Text("E.D.I.T.H.'e hoş geldiniz", color = SolukKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp)
+                Motor.indirme?.let { Text(it, color = VurguAcik, fontSize = 13.sp) }
+                Motor.hata?.let { Text(it, color = HataAcik, fontSize = 13.sp) }
             }
         }
         return
@@ -113,10 +133,10 @@ fun Sohbet(mod: Modifier) {
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         items(Motor.mesajlar) { m -> if (m.kullanici) KullaniciBalonu(m.metin, 1f) else AsistanMetni(m.metin) }
-        if (canliVar) item { KullaniciBalonu(Motor.canli, 0.6f) }
+        if (canliVar) item { KullaniciBalonu(Motor.canli, 0.65f) }
         if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
-        Motor.indirme?.let { t -> item { Text(t, color = Turuncu, fontSize = 13.sp) } }
-        Motor.hata?.let { h -> item { Text(h, color = Kirmizi, fontSize = 13.sp) } }
+        Motor.indirme?.let { t -> item { Text(t, color = VurguAcik, fontSize = 13.sp) } }
+        Motor.hata?.let { h -> item { Text(h, color = HataAcik, fontSize = 13.sp) } }
     }
 }
 
@@ -126,9 +146,9 @@ fun KullaniciBalonu(metin: String, alfa: Float) {
         Text(
             metin,
             Modifier.widthIn(max = 300.dp).alpha(alfa)
-                .yuzey(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp))
+                .kart(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            color = Metin, fontSize = 16.sp
+            color = MetinKoyu, fontSize = 16.sp
         )
     }
 }
@@ -136,7 +156,7 @@ fun KullaniciBalonu(metin: String, alfa: Float) {
 @Composable
 fun AsistanMetni(metin: String) {
     SelectionContainer {
-        Text(metin, color = Metin, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
+        Text(metin, color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
     }
 }
 
@@ -144,20 +164,20 @@ fun AsistanMetni(metin: String) {
 fun Dusunuyor() {
     val t = rememberInfiniteTransition(label = "dusunuyor")
     val a by t.animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "alfa")
-    Text("Düşünüyor…", Modifier.alpha(a), color = Turuncu, fontFamily = FontFamily.Serif, fontSize = 16.sp)
+    Text("Düşünüyor…", Modifier.alpha(a), color = VurguAcik, fontFamily = FontFamily.Serif, fontSize = 16.sp)
 }
 
 @Composable
 fun DurumSatiri() {
     val (yazi, renk) = when (Motor.faz) {
-        Faz.KOMUT -> "Dinleniyor" to Yesil
-        Faz.ISLE -> "Düşünüyor…" to Turuncu
-        Faz.KONUS -> "Konuşuyor" to Turuncu
-        Faz.BOS -> "Bekleniyor" to Soluk
+        Faz.KOMUT -> "Dinleniyor" to YesilAcik
+        Faz.ISLE -> "Düşünüyor…" to VurguAcik
+        Faz.KONUS -> "Konuşuyor" to VurguAcik
+        Faz.BOS -> "Bekleniyor" to SolukKrem
     }
     Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(yazi, color = renk, fontSize = 13.sp)
-        if (Motor.mikAcik && Motor.faz == Faz.BOS) Text("  ·  \"hey edit\" de", color = Soluk, fontSize = 13.sp)
+        if (Motor.mikAcik && Motor.faz == Faz.BOS) Text("  ·  \"hey edit\" de", color = SolukKrem, fontSize = 13.sp)
     }
 }
 
@@ -166,7 +186,7 @@ fun GirisCubugu(onMik: () -> Unit) {
     var metin by remember { mutableStateOf("") }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
-            .yuzey(RoundedCornerShape(32.dp))
+            .kart(RoundedCornerShape(32.dp))
             .padding(start = 6.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -174,38 +194,38 @@ fun GirisCubugu(onMik: () -> Unit) {
             value = metin,
             onValueChange = { metin = it },
             modifier = Modifier.weight(1f),
-            placeholder = { Text("Mesaj yaz…", color = Soluk) },
+            placeholder = { Text("Mesaj yaz…", color = SolukKoyu) },
             maxLines = 4,
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = Turuncu,
-                focusedTextColor = Metin,
-                unfocusedTextColor = Metin
+                cursorColor = Vurgu,
+                focusedTextColor = MetinKoyu,
+                unfocusedTextColor = MetinKoyu
             )
         )
         Box(
             Modifier.height(42.dp).clip(RoundedCornerShape(50))
-                .background(if (Motor.mikAcik) Yesil else Kenar)
+                .background(if (Motor.mikAcik) Yesil else KremKoyu)
                 .clickable(onClick = onMik).padding(horizontal = 14.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 if (Motor.mikAcik) "Mik açık" else "Mikrofon",
-                color = if (Motor.mikAcik) Zemin else Metin, fontSize = 13.sp, fontWeight = FontWeight.Medium
+                color = if (Motor.mikAcik) KremAcik else MetinKoyu, fontSize = 13.sp, fontWeight = FontWeight.Medium
             )
         }
         Box(Modifier.padding(start = 8.dp))
         Box(
-            Modifier.height(42.dp).widthIn(min = 42.dp).clip(CircleShape).background(Turuncu).clickable {
+            Modifier.height(42.dp).widthIn(min = 42.dp).clip(CircleShape).background(Vurgu).clickable {
                 if (metin.isNotBlank()) {
                     Motor.gonder(metin, sesli = false)
                     metin = ""
                 }
             },
             contentAlignment = Alignment.Center
-        ) { Text("↑", color = Zemin, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+        ) { Text("↑", color = KremAcik, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
     }
 }

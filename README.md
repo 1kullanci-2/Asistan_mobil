@@ -12,6 +12,12 @@ Sesli asistan projesi. Bu repo Android uygulamasıdır (Kotlin + Jetpack Compose
 3. MCP bağlantıları ve araç çağırma (0.2'de ilk sürüm var)
 4. İnce ayar
 
+## 0.3
+- Vişne/krem düz renk teması (simge ve logolarda kullanılmaz).
+- Ayarlar: ana ekranda kategori kartları (Yapay zeka, Ses, Uyandırma, Mikrofon, Bağlantılar, Panel ve izinler).
+- Ses: Gemini ve ElevenLabs için yatay kayan kare ses kartları; karta dokununca seçilir ve örnek çalar. ElevenLabs: hesap/kredi, sesler, modeller, karakter ayarları.
+- Uyandırma kelimesi uygulama dışında söylenince dinleme paneli açılır (varsayılan dijital asistan veya "diğer uygulamaların üzerinde göster" izni; izin otomatik istenmez, Ayarlar → Panel ve izinler).
+
 ## Sesli kullanım (0.2)
 - "Mikrofon" düğmesi dinlemeyi açar; ilk açılışta Vosk modelleri (Türkçe ~35 MB, İngilizce ~40 MB) indirilir.
 - Bekleme: yalnızca İngilizce model "hey edit" / "edit" dinler. Duyunca Türkçe model komutu dinler; 1,5 sn sessizlikte gönderilir.

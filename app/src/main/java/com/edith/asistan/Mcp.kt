@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 data class McpArac(val ad: String, val aciklama: String, val sema: JSONObject?)
 
 /** Basit MCP istemcisi (Streamable HTTP, JSON-RPC): initialize, tools/list, tools/call. */
-class McpIstemci(val baglanti: Baglanti) {
+class McpIstemci(private val url: String, private val baslik: String = "") {
     private val http = OkHttpClient.Builder().callTimeout(60, TimeUnit.SECONDS).build()
     private var oturum: String? = null
     private var sayac = 0
@@ -27,7 +27,7 @@ class McpIstemci(val baglanti: Baglanti) {
             JSONObject()
                 .put("protocolVersion", "2025-03-26")
                 .put("capabilities", JSONObject())
-                .put("clientInfo", JSONObject().put("name", "edith-android").put("version", "0.2"))
+                .put("clientInfo", JSONObject().put("name", "edith-android").put("version", "0.3"))
         )
         rpc("notifications/initialized", null, bildirim = true)
         val sonuc = rpc("tools/list", JSONObject()) ?: JSONObject()
@@ -58,11 +58,16 @@ class McpIstemci(val baglanti: Baglanti) {
         if (id != null) govde.put("id", id)
         if (params != null) govde.put("params", params)
 
-        val b = Request.Builder().url(baglanti.url)
+        val b = Request.Builder().url(url)
             .header("Accept", "application/json, text/event-stream")
             .post(govde.toString().toRequestBody("application/json".toMediaType()))
         oturum?.let { b.header("Mcp-Session-Id", it) }
-        if (baglanti.anahtar.isNotBlank()) b.header("Authorization", "Bearer ${baglanti.anahtar}")
+        // "Ad: değer" biçimindeki ek başlık (ör. Authorization: Bearer ...)
+        if (baslik.contains(":")) {
+            val ad = baslik.substringBefore(":").trim()
+            val deger = baslik.substringAfter(":").trim()
+            if (ad.isNotEmpty() && deger.isNotEmpty()) b.header(ad, deger)
+        }
 
         return http.newCall(b.build()).execute().use { r ->
             r.header("Mcp-Session-Id")?.let { oturum = it }

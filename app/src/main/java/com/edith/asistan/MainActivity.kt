@@ -15,8 +15,9 @@ import androidx.core.content.ContextCompat
 class MainActivity : ComponentActivity() {
 
     private val izinIstegi = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        Motor.izinYenile()
         if (verildi(Manifest.permission.RECORD_AUDIO)) Motor.mikrofonAc()
-        else Motor.hata = "Mikrofon izni verilmedi; telefon ayarlarından izin verebilirsin."
+        else Motor.hata = "Mikrofon izni verilmedi; Ayarlar → Panel ve izinler bölümünden açabilirsin."
     }
 
     private fun verildi(izin: String) =
@@ -42,5 +43,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             EdithTema { Uygulama(onMik = ::mikrofonDugmesi) }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Motor.onde = true
+        Motor.izinYenile()
+        Panel.gizle() // uygulama öndeyken ekran üstü panel gerekmez
+    }
+
+    override fun onPause() {
+        Motor.onde = false
+        super.onPause()
     }
 }

@@ -20,8 +20,6 @@ data class Cevap(val metin: String, val soru: Boolean)
 data class GeminiArac(val ad: String, val aciklama: String, val sema: JSONObject?)
 
 object Gemini {
-    private const val HIZLI = "gemini-flash-lite-latest"
-    private const val KALITELI = "gemini-flash-latest"
     private val BASIT = listOf("saat", "hava durumu", "merhaba", "selam", "nasılsın", "teşekkür", "günaydın")
 
     private fun sistem(): String {
@@ -42,16 +40,17 @@ object Gemini {
     private val izinliAnahtar = setOf("type", "properties", "required", "description", "enum", "items", "format", "nullable")
 
     suspend fun sor(
-        apiKey: String,
+        ayar: Ayarlar,
         gecmis: List<Mesaj>,
         mesaj: String,
         araclar: List<GeminiArac> = emptyList(),
         cagir: suspend (String, JSONObject) -> String = { _, _ -> "" }
     ): Cevap = withContext(Dispatchers.IO) {
-        require(apiKey.isNotBlank()) { "Gemini API anahtarı girilmemiş (Ayarlar'dan ekleyin)." }
-        val basit = araclar.isEmpty() &&
+        val apiKey = ayar.apiKey
+        require(apiKey.isNotBlank()) { "Gemini API anahtarı girilmemiş (Ayarlar → Yapay zeka)." }
+        val basit = ayar.modelYonlendirme && araclar.isEmpty() &&
             (BASIT.any { mesaj.lowercase().contains(it) } || mesaj.trim().split(" ").size <= 6)
-        val model = if (basit) HIZLI else KALITELI
+        val model = if (basit) ayar.modelHizli else ayar.modelKaliteli
 
         val icerik = JSONArray()
         (gecmis + Mesaj(true, mesaj)).forEach {
