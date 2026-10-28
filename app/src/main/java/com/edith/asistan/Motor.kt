@@ -509,7 +509,11 @@ object Motor : DinleyiciGeri {
             mcpDurum[b.id] = "Bağlı · $n araç"
         } catch (e: Exception) {
             mcp.remove(b.id)
-            mcpDurum[b.id] = "Hata: ${e.message?.take(100)}"
+            val m = e.message.orEmpty()
+            val ipucu = if (m.contains("SSL", true) || m.contains("reset", true))
+                " — Telefonun ağı bu adresin güvenli bağlantısını kesiyor olabilir (operatör/ağ engeli). Tarayıcıdan açmayı ve Wi‑Fi yerine mobil veriyi dene."
+            else ""
+            mcpDurum[b.id] = "Hata: ${m.take(100)}$ipucu"
         }
     }
 

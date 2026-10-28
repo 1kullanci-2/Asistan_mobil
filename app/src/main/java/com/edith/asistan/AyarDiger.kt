@@ -195,6 +195,8 @@ fun SayfaBaglanti(geri: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Dugme("Dene") { kapsam.launch { Motor.mcpBaglan(b) } }
                     Dugme("Araçlar") { acilan = if (acilan == b.id) null else b.id }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Dugme("Düzenle") { duzenle = b }
                     Dugme("Sil", DugmeTuru.TEHLIKE) { Motor.mcpSil(b); kaydet(liste.filter { it.id != b.id }) }
                 }
