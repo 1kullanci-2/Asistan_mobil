@@ -57,6 +57,7 @@ object Motor : DinleyiciGeri {
 
     // ── Sohbet ve genel durum
     val mesajlar = mutableStateListOf<Mesaj>()
+    var adim by mutableStateOf("")           // "Araç çalışıyor · …" gibi anlık durum
     var akanMetin by mutableStateOf("")      // cevap yazılırken canlı görünen metin
     var menuAcik by mutableStateOf(false)
     val sohbetler = mutableStateListOf<SohbetBaslik>()
@@ -185,7 +186,9 @@ object Motor : DinleyiciGeri {
         if (mikAcik) return
         mikAcik = true
         hata = null
-        runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, EdithServisi::class.java)) }
+        if (ayarlar.surekliDinleme) {
+            runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, EdithServisi::class.java)) }
+        }
         scope.launch {
             if (!modelleriHazirla()) {
                 mikrofonKapat()
@@ -218,6 +221,39 @@ object Motor : DinleyiciGeri {
         ogrenKelime = null
         if (faz == Faz.KOMUT) fazAyarla(Faz.BOS)
         runCatching { ctx.stopService(Intent(ctx, EdithServisi::class.java)) }
+    }
+
+    /** Sohbet ekranındaki mikrofon düğmesi: "hey edit" beklemeden hemen komut dinler. */
+    fun sesliKomut() {
+        if (faz == Faz.ISLE || faz == Faz.KONUS) {
+            islemJob?.cancel()
+            Ses.kes()
+            akanMetin = ""
+            fazAyarla(Faz.BOS)
+        }
+        if (!mikAcik) {
+            bekleyenTakip = true
+            mikrofonAc()
+        } else dinleyici?.takipIste()
+    }
+
+    fun dinlemeyiIptal() {
+        bekleyenTakip = false
+        dinleyici?.iptalIste()
+        if (faz == Faz.KOMUT) {
+            canli = ""
+            fazAyarla(Faz.BOS)
+        }
+    }
+
+    /** İzinler → Sürekli dinleme anahtarı. */
+    fun surekliAyarla(v: Boolean) {
+        ayarlar.surekliDinleme = v
+        if (v) {
+            if (mikAcik) runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, EdithServisi::class.java)) }
+            else mikrofonAc()
+        } else if (!onde) mikrofonKapat()
+        else runCatching { ctx.stopService(Intent(ctx, EdithServisi::class.java)) }
     }
 
     /** Sistem, varsayılan asistan olarak bizi açtığında (uzun basma vb.): hemen dinlemeye başla. */
@@ -381,6 +417,7 @@ object Motor : DinleyiciGeri {
             Ses.kes()
         }
         akanMetin = ""
+        adim = ""
         var k = aktif
         val ilk = k == null
         if (k == null) {
@@ -486,6 +523,7 @@ object Motor : DinleyiciGeri {
                                 }
                             }
                             kullanilan.add(gercek)
+                            adim = "Araç çalışıyor · $gercek"
                             try {
                                 ist.cagir(gercek, args)
                             } catch (e: CancellationException) {
@@ -495,6 +533,8 @@ object Motor : DinleyiciGeri {
                                 mcpBaglan(bag)
                                 val yeni = mcp[bag.id] ?: throw e
                                 yeni.cagir(gercek, args)
+                            } finally {
+                                adim = ""
                             }
                         }
                     )
@@ -518,6 +558,7 @@ object Motor : DinleyiciGeri {
                 }
             }
             akanMetin = ""
+            adim = ""
             fazAyarla(Faz.BOS)
             if (mikAcik && hata == null && ((soru && ayarlar.soruSorunca) || ayarlar.herCevapta)) {
                 dinleyici?.takipIste()

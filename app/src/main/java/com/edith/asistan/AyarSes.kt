@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -113,14 +114,14 @@ fun SayfaSes(geri: () -> Unit, git: (String) -> Unit) {
     SayfaCerceve("Ses", geri) {
         HataKutusu()
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(IntrinsicSize.Max),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            SaglayiciKarti("Gemini sesleri", "Seçili: ${a.geminiSes}", Modifier.weight(1f)) { git("ses_gemini") }
+            SaglayiciKarti("Gemini sesleri", "Seçili: ${a.geminiSes}", Modifier.weight(1f).fillMaxHeight()) { git("ses_gemini") }
             SaglayiciKarti(
                 "ElevenLabs",
                 if (a.elevenSes.isBlank()) "Ses seçilmedi" else "Seçili: ${a.elevenSesAdi.ifBlank { a.elevenSes.take(8) }}",
-                Modifier.weight(1f)
+                Modifier.weight(1f).fillMaxHeight()
             ) { git("ses_eleven") }
         }
         Bolum("Genel") {
@@ -271,9 +272,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.ElevenHesap() {
     Bolum("API anahtarı", "elevenlabs.io → API Keys. Anahtarda ses, model ve kullanıcı okuma izinlerini aç.") {
         Alan(anahtar, { anahtar = it; a.elevenKey = it }, "ElevenLabs API anahtarı", gizli = !goster)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Dugme(if (Motor.elevenYukleniyor) "Çekiliyor…" else "Bağlan ve çek", DugmeTuru.BIRINCIL) { Motor.elevenCek() }
-            Dugme(if (goster) "Gizle" else "Göster") { goster = !goster }
-            Dugme("Sil", DugmeTuru.TEHLIKE) { anahtar = ""; Motor.elevenTemizle() }
+            Dugme(if (Motor.elevenYukleniyor) "Çekiliyor…" else "Bağlan ve çek", DugmeTuru.BIRINCIL, Modifier.weight(1.5f)) { Motor.elevenCek() }
+            Dugme(if (goster) "Gizle" else "Göster", DugmeTuru.IKINCIL, Modifier.weight(1f)) { goster = !goster }
+            Dugme("Sil", DugmeTuru.TEHLIKE, Modifier.weight(1f)) { anahtar = ""; Motor.elevenTemizle() }
         }
         Motor.elevenMesaj?.let { Text(it, color = Hata, fontSize = 12.sp, lineHeight = 16.sp) }
     }

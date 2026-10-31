@@ -291,6 +291,40 @@ object Gemini {
         }.trim().take(1500)
     }
 
+    /** Anahtarın görebildiği, metin üretebilen Gemini modelleri. */
+    suspend fun modeller(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        val istek = Request.Builder().url("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200")
+            .header("x-goog-api-key", apiKey).build()
+        istemci.newCall(istek).execute().use { r ->
+            val s = r.body?.string().orEmpty()
+            if (!r.isSuccessful) throw RuntimeException(hataMetni(r.code, s))
+            val dizi = JSONObject(s).optJSONArray("models") ?: JSONArray()
+            val dislanan = listOf("tts", "image", "live", "embedding", "audio", "robotics", "computer", "veo")
+            (0 until dizi.length()).map { dizi.getJSONObject(it) }
+                .filter { m -> (m.optJSONArray("supportedGenerationMethods")?.toString() ?: "").contains("generateContent") }
+                .map { it.optString("name").removePrefix("models/") }
+                .filter { ad -> ad.startsWith("gemini") && dislanan.none { x -> x in ad } }
+                .sorted()
+        }
+    }
+
+    /** Modele tek kısa istek atar; "ok" ya da kısa hata metni döner. */
+    suspend fun modelDene(apiKey: String, model: String): String = withContext(Dispatchers.IO) {
+        val govde = JSONObject()
+            .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", "Merhaba")))))
+            .put("generationConfig", JSONObject().put("maxOutputTokens", 8))
+        try {
+            istekAt(apiKey, model, govde.toString())
+            "ok"
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: KotaHatasi) {
+            "kota dolu"
+        } catch (e: Exception) {
+            e.message?.take(90) ?: "hata"
+        }
+    }
+
     /** Akışlı (SSE) istek. Gelen metin [suzgec]e verilir; modelin ham parçaları döndürülür. */
     private suspend fun akisliIstek(apiKey: String, model: String, govde: String, suzgec: AkisSuzgeci): JSONArray {
         var son = "Sunucudan cevap alınamadı."

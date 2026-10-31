@@ -1,7 +1,15 @@
 package com.edith.asistan
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,6 +60,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontFamily
@@ -81,7 +95,6 @@ fun Uygulama(onMik: () -> Unit) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
             UstCubuk { Motor.menuAcik = true }
             Sohbet(Modifier.weight(1f))
-            DurumSatiri()
             GirisCubugu(onMik)
         }
         YanPanel()
@@ -232,7 +245,7 @@ fun Sohbet(mod: Modifier) {
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         items(Motor.mesajlar) { m ->
-            if (m.not) NotSatiri(m.metin) else if (m.kullanici) KullaniciBalonu(m.metin, 1f) else AsistanMetni(m.metin)
+            if (m.not) NotSatiri(m.metin) else if (m.kullanici) KullaniciBalonu(m.metin, 1f) else AsistanMesaji(m)
         }
         if (canliVar) item { KullaniciBalonu(Motor.canli, 0.65f) }
         if (akan) item { AsistanMetni(Motor.akanMetin) } else if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
@@ -266,41 +279,70 @@ fun AsistanMetni(metin: String) {
     }
 }
 
+/** Düşünürken parlayan yazı; araç çalışırken hangi araç olduğu da görünür. */
 @Composable
 fun Dusunuyor() {
     val t = rememberInfiniteTransition(label = "dusunuyor")
-    val a by t.animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "alfa")
-    Text("Düşünüyor…", Modifier.alpha(a), color = VurguAcik, fontFamily = FontFamily.Serif, fontSize = 16.sp)
+    val kay by t.animateFloat(-260f, 700f, infiniteRepeatable(tween(1700, easing = LinearEasing)), label = "kay")
+    val soluk = MetinKrem.copy(alpha = 0.5f)
+    val firca = Brush.linearGradient(listOf(soluk, MetinKrem, soluk), start = Offset(kay, 0f), end = Offset(kay + 260f, 0f))
+    val yazi = if (Motor.adim.isNotBlank()) Motor.adim + "…" else "Düşünüyor…"
+    Text(yazi, style = TextStyle(brush = firca, fontFamily = FontFamily.Serif, fontSize = 16.sp))
 }
 
 @Composable
-fun DurumSatiri() {
-    val (yazi, renk) = when (Motor.faz) {
-        Faz.KOMUT -> "Dinleniyor" to YesilAcik
-        Faz.ISLE -> "Düşünüyor…" to VurguAcik
-        Faz.KONUS -> "Konuşuyor" to VurguAcik
-        Faz.BOS -> "Bekleniyor" to SolukKrem
+fun AsistanMesaji(m: Mesaj) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (m.araclar.isNotEmpty()) AracSatiri(m.araclar)
+        AsistanMetni(m.metin)
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(yazi, color = renk, fontSize = 13.sp)
-        if (Motor.mikAcik && Motor.faz == Faz.BOS) Text("  ·  \"hey edit\" de", color = SolukKrem, fontSize = 13.sp)
+}
+
+/** "araç kullanıldı ›" satırı: dokununca kullanılan araçlar aşağı doğru açılır. */
+@Composable
+fun AracSatiri(araclar: List<String>) {
+    var acik by remember { mutableStateOf(false) }
+    val donus by animateFloatAsState(if (acik) 270f else 180f, label = "ok")
+    val sekil = RoundedCornerShape(50)
+    Column {
+        Row(
+            Modifier.clip(sekil).background(Color.White.copy(alpha = 0.16f)).border(1.dp, Color.White.copy(alpha = 0.3f), sekil)
+                .clickable { acik = !acik }.padding(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (araclar.size == 1) "araç kullanıldı" else "${araclar.size} araç kullanıldı",
+                color = MetinKrem, fontSize = 13.sp
+            )
+            Spacer(Modifier.width(6.dp))
+            Simge("geri", MetinKrem, Modifier.size(14.dp).rotate(donus))
+        }
+        AnimatedVisibility(visible = acik, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(Modifier.padding(start = 6.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                araclar.forEach { Text("•  $it", color = SolukKrem, fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+            }
+        }
     }
 }
 
 @Composable
 fun GirisCubugu(onMik: () -> Unit) {
     var metin by remember { mutableStateOf("") }
+    val dinliyor = Motor.faz == Faz.KOMUT
+    val yaziVar = metin.isNotBlank()
+    // Yazmaya başlayınca sesle dinleme bırakılır
+    LaunchedEffect(yaziVar) { if (yaziVar && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
             .kart(RoundedCornerShape(32.dp))
-            .padding(start = 6.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+            .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         TextField(
             value = metin,
             onValueChange = { metin = it },
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("Mesaj yaz…", color = SolukKoyu) },
+            modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() },
+            placeholder = { Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = SolukKoyu) },
             maxLines = 4,
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
@@ -312,26 +354,32 @@ fun GirisCubugu(onMik: () -> Unit) {
                 unfocusedTextColor = MetinKoyu
             )
         )
-        Box(
-            Modifier.height(42.dp).clip(RoundedCornerShape(50))
-                .background(if (Motor.mikAcik) Yesil else KremKoyu)
-                .clickable(onClick = onMik).padding(horizontal = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                if (Motor.mikAcik) "Mik açık" else "Mikrofon",
-                color = if (Motor.mikAcik) KremAcik else MetinKoyu, fontSize = 13.sp, fontWeight = FontWeight.Medium
-            )
+        Box(contentAlignment = Alignment.Center) {
+            if (dinliyor) { // ses seviyesiyle nefes alan düz halka
+                Box(
+                    Modifier.size(46.dp)
+                        .graphicsLayer { val o = 1f + 0.5f * Motor.seviye; scaleX = o; scaleY = o }
+                        .background(Yesil.copy(alpha = 0.35f), CircleShape)
+                )
+            }
+            Box(
+                Modifier.size(46.dp).clip(CircleShape).background(if (dinliyor) Yesil else Vurgu).clickable {
+                    if (yaziVar) {
+                        Motor.gonder(metin, sesli = false)
+                        metin = ""
+                    } else if (dinliyor) Motor.dinlemeyiIptal() else onMik()
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedContent(
+                    targetState = yaziVar,
+                    transitionSpec = {
+                        (fadeIn(tween(160)) + scaleIn(initialScale = 0.6f)) togetherWith
+                            (fadeOut(tween(120)) + scaleOut(targetScale = 0.6f))
+                    },
+                    label = "gonder"
+                ) { yaz -> Simge(if (yaz) "gonder" else "mik", KremAcik, Modifier.size(24.dp)) }
+            }
         }
-        Box(Modifier.padding(start = 8.dp))
-        Box(
-            Modifier.height(42.dp).widthIn(min = 42.dp).clip(CircleShape).background(Vurgu).clickable {
-                if (metin.isNotBlank()) {
-                    Motor.gonder(metin, sesli = false)
-                    metin = ""
-                }
-            },
-            contentAlignment = Alignment.Center
-        ) { Text("↑", color = KremAcik, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
     }
 }

@@ -87,6 +87,7 @@ class EdithOturum(baglam: Context) : VoiceInteractionSession(baglam) {
         super.onHide()
         if (aktif === this) aktif = null
         Motor.panelGorunur = false
+        if (!Motor.ayarlar.surekliDinleme && !Motor.onde) Motor.mikrofonKapat()
     }
 
     override fun onDestroy() {

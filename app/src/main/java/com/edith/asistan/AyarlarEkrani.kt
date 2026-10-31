@@ -56,7 +56,7 @@ private fun AnaAyarlar(kapat: () -> Unit, git: (String) -> Unit) {
             ),
             listOf(
                 Triple("baglanti", "Bağlantılar", "MCP araçları, onaylar"),
-                Triple("panel", "Panel ve izinler", "Ekran üstü panel, asistan, pil")
+                Triple("panel", "İzinler", "Sürekli dinleme, asistan, ekran üstü, pil")
             )
         )
         val hedef = mapOf("ai" to "ai", "ses" to "ses", "uyan" to "uyan", "mik" to "mik", "baglanti" to "bag", "panel" to "panel")

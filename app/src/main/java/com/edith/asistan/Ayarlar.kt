@@ -115,6 +115,11 @@ class Ayarlar(ctx: Context) {
         get() = sayi("sessizlik_suresi", 1.2f)
         set(v) = sp.edit().putFloat("sessizlik_suresi", v).apply()
 
+    // ── Sürekli dinleme (arka planda "hey edit"; bildirim gösterir)
+    var surekliDinleme: Boolean
+        get() = bool("surekli_dinleme", false)
+        set(v) = bool("surekli_dinleme", false, v)
+
     // ── Panel
     var panelGoster: Boolean
         get() = bool("panel_goster", true)

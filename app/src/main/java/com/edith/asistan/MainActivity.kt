@@ -16,21 +16,17 @@ class MainActivity : ComponentActivity() {
 
     private val izinIstegi = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         Motor.izinYenile()
-        if (verildi(Manifest.permission.RECORD_AUDIO)) Motor.mikrofonAc()
-        else Motor.hata = "Mikrofon izni verilmedi; Ayarlar → Panel ve izinler bölümünden açabilirsin."
+        if (verildi(Manifest.permission.RECORD_AUDIO)) Motor.sesliKomut()
+        else Motor.hata = "Mikrofon izni verilmedi; Ayarlar → İzinler bölümünden açabilirsin."
     }
 
     private fun verildi(izin: String) =
         ContextCompat.checkSelfPermission(this, izin) == PackageManager.PERMISSION_GRANTED
 
+    /** Sohbetteki mikrofon düğmesi: izin varsa hemen dinlemeye başlar. */
     private fun mikrofonDugmesi() {
-        if (Motor.mikAcik) { Motor.mikrofonKapat(); return }
-        val eksik = mutableListOf<String>()
-        if (!verildi(Manifest.permission.RECORD_AUDIO)) eksik.add(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= 33 && !verildi(Manifest.permission.POST_NOTIFICATIONS)) {
-            eksik.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        if (eksik.isEmpty()) Motor.mikrofonAc() else izinIstegi.launch(eksik.toTypedArray())
+        if (verildi(Manifest.permission.RECORD_AUDIO)) Motor.sesliKomut()
+        else izinIstegi.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,10 +46,14 @@ class MainActivity : ComponentActivity() {
         Motor.onde = true
         Motor.izinYenile()
         Panel.gizle() // uygulama öndeyken ekran üstü panel gerekmez
+        // Uygulama açıkken "hey edit" bildirimsiz dinlenir
+        if (Motor.izinMikrofon && Motor.modellerHazir && !Motor.mikAcik) Motor.mikrofonAc()
     }
 
     override fun onPause() {
         Motor.onde = false
+        // Sürekli dinleme kapalıysa uygulamadan çıkınca mikrofon da kapanır
+        if (!Motor.ayarlar.surekliDinleme && Motor.mikAcik) Motor.mikrofonKapat()
         super.onPause()
     }
 }

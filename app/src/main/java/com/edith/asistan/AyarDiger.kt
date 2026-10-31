@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,6 +36,11 @@ fun SayfaYapayZeka(geri: () -> Unit) {
     var hizli by remember { mutableStateOf(a.modelHizli) }
     var kaliteli by remember { mutableStateOf(a.modelKaliteli) }
     var yonlendirme by remember { mutableStateOf(a.modelYonlendirme) }
+    var liste by remember { mutableStateOf<List<String>>(emptyList()) }
+    var yukleniyor by remember { mutableStateOf(false) }
+    var listeHata by remember { mutableStateOf<String?>(null) }
+    val sonuc = remember { mutableStateMapOf<String, String>() }
+    val kapsam = rememberCoroutineScope()
     SayfaCerceve("Yapay zeka", geri) {
         Bolum("Gemini API anahtarı", "aistudio.google.com üzerinden ücretsiz alınır. Yalnızca bu telefonda saklanır.") {
             Alan(anahtar, { anahtar = it; a.apiKey = it }, "API anahtarı", gizli = !goster)
@@ -44,7 +50,12 @@ fun SayfaYapayZeka(geri: () -> Unit) {
                 if (anahtar.isBlank()) Etiket("girilmedi", "hata") else Etiket("kayıtlı", "ok")
             }
         }
-        Bolum("Modeller", "Kısa ve basit istekler hızlı modele, uzun ya da karmaşık olanlar kaliteli modele gider.") {
+        Bolum(
+            "Modeller",
+            "Her istek önce hızlı modele gider; o gerekli görürse kaliteli modele devreder. Bildiğim kadarıyla Gemini'nin ücretsiz " +
+                "planında Flash modelleri günde yaklaşık 20 istekle sınırlı, Flash-Lite ise ~500. Kaliteli modeli de Flash-Lite yaparsan " +
+                "yönlendirme kapanır ve her şey tek modelle yanıtlanır."
+        ) {
             Anahtarli("Otomatik yönlendirme", "Kapalıysa her istek kaliteli modelle yanıtlanır.", yonlendirme) {
                 yonlendirme = it; a.modelYonlendirme = it
             }
@@ -52,6 +63,49 @@ fun SayfaYapayZeka(geri: () -> Unit) {
             Alan(hizli, { hizli = it; a.modelHizli = it }, "gemini-flash-lite-latest")
             Text("Kaliteli model", color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Alan(kaliteli, { kaliteli = it; a.modelKaliteli = it }, "gemini-flash-latest")
+        }
+        Bolum(
+            "Kullanılabilir modeller",
+            "Anahtarının görebildiği modelleri getirir. “Dene” tek bir kısa istek harcar; kotası olmayan modeli hemen görürsün. " +
+                "Yönlendirme için hızlı ve kaliteli modeli birbirinden farklı seç."
+        ) {
+            Dugme(if (yukleniyor) "Getiriliyor…" else "Modelleri getir", DugmeTuru.BIRINCIL, Modifier.fillMaxWidth()) {
+                if (!yukleniyor && a.apiKey.isNotBlank()) {
+                    yukleniyor = true
+                    listeHata = null
+                    kapsam.launch {
+                        try {
+                            liste = Gemini.modeller(a.apiKey)
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            listeHata = e.message
+                        }
+                        yukleniyor = false
+                    }
+                } else if (a.apiKey.isBlank()) listeHata = "Önce API anahtarını gir."
+            }
+            listeHata?.let { Text(it, color = Hata, fontSize = 12.sp) }
+            liste.forEach { m ->
+                AltKutu {
+                    Text(m, color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (hizli == m) Etiket("hızlı", "bilgi")
+                        if (kaliteli == m) Etiket("kaliteli", "bilgi")
+                        val d = sonuc[m]
+                        if (d == "ok") Etiket("çalışıyor ✓", "ok")
+                        else if (d != null) Text(d, color = Hata, fontSize = 12.sp, lineHeight = 15.sp)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Dugme("Dene", DugmeTuru.IKINCIL, Modifier.weight(1f)) {
+                            sonuc[m] = "deneniyor…"
+                            kapsam.launch { sonuc[m] = Gemini.modelDene(a.apiKey, m) }
+                        }
+                        Dugme("Hızlı", DugmeTuru.IKINCIL, Modifier.weight(1f)) { hizli = m; a.modelHizli = m }
+                        Dugme("Kaliteli", DugmeTuru.IKINCIL, Modifier.weight(1f)) { kaliteli = m; a.modelKaliteli = m }
+                    }
+                }
+            }
         }
     }
 }
@@ -78,8 +132,8 @@ fun SayfaUyandirma(geri: () -> Unit) {
                         Etiket(if (adet == 0) "öğrenilen yok" else "$adet varyasyon", if (adet == 0) "gri" else "ok")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Dugme("Öğren", DugmeTuru.BIRINCIL) { Motor.ogrenBaslat(w) }
-                        Dugme("Sıfırla", DugmeTuru.TEHLIKE) { Motor.ogrenSifirla(w) }
+                        Dugme("Öğren", DugmeTuru.BIRINCIL, Modifier.weight(1f)) { Motor.ogrenBaslat(w) }
+                        Dugme("Sıfırla", DugmeTuru.TEHLIKE, Modifier.weight(1f)) { Motor.ogrenSifirla(w) }
                     }
                 }
             }
@@ -89,8 +143,8 @@ fun SayfaUyandirma(geri: () -> Unit) {
                     if (Motor.ogrenCanli.isNotBlank()) Text(Motor.ogrenCanli, color = SolukKoyu, fontSize = 12.sp)
                     if (Motor.ogrenKelime != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Dugme("Bitir", DugmeTuru.BIRINCIL) { Motor.ogrenBitir(false) }
-                            Dugme("İptal") { Motor.ogrenBitir(true) }
+                            Dugme("Bitir", DugmeTuru.BIRINCIL, Modifier.weight(1f)) { Motor.ogrenBitir(false) }
+                            Dugme("İptal", DugmeTuru.IKINCIL, Modifier.weight(1f)) { Motor.ogrenBitir(true) }
                         }
                     }
                 }
@@ -193,12 +247,12 @@ fun SayfaBaglanti(geri: () -> Unit) {
                 }
                 Anahtarli("Açık", null, b.acik) { v -> kaydet(liste.map { if (it.id == b.id) it.copy(acik = v) else it }) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Dugme("Dene") { kapsam.launch { Motor.mcpBaglan(b) } }
-                    Dugme("Araçlar") { acilan = if (acilan == b.id) null else b.id }
+                    Dugme("Dene", DugmeTuru.IKINCIL, Modifier.weight(1f)) { kapsam.launch { Motor.mcpBaglan(b) } }
+                    Dugme("Araçlar", DugmeTuru.IKINCIL, Modifier.weight(1f)) { acilan = if (acilan == b.id) null else b.id }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Dugme("Düzenle") { duzenle = b }
-                    Dugme("Sil", DugmeTuru.TEHLIKE) { Motor.mcpSil(b); kaydet(liste.filter { it.id != b.id }) }
+                    Dugme("Düzenle", DugmeTuru.IKINCIL, Modifier.weight(1f)) { duzenle = b }
+                    Dugme("Sil", DugmeTuru.TEHLIKE, Modifier.weight(1f)) { Motor.mcpSil(b); kaydet(liste.filter { it.id != b.id }) }
                 }
                 if (acilan == b.id) {
                     val araclar = Motor.mcpAraclarListesi(b)
@@ -275,13 +329,21 @@ private fun BaglantiDiyalogu(mevcut: Baglanti?, kapat: () -> Unit, kaydet: (Bagl
     )
 }
 
-// ───────────────────────── Panel ve izinler ─────────────────────────
+// ───────────────────────── İzinler ─────────────────────────
 
 @Composable
 fun SayfaPanel(geri: () -> Unit) {
     val a = Motor.ayarlar
     var panel by remember { mutableStateOf(a.panelGoster) }
-    SayfaCerceve("Panel ve izinler", geri) {
+    var surekli by remember { mutableStateOf(a.surekliDinleme) }
+    SayfaCerceve("İzinler", geri) {
+        Bolum(
+            "Sürekli dinleme",
+            "Açıksa uygulama kapalıyken de “hey edit” dinlenir; bildirimde mikrofon göstergesi görünür ve pil daha çok harcanır. " +
+                "Kapalıysa yalnızca uygulama açıkken ve güç tuşuyla (varsayılan asistan) dinlenir."
+        ) {
+            Anahtarli("Arka planda dinle", null, surekli) { surekli = it; Motor.surekliAyarla(it) }
+        }
         Bolum("Dinleme paneli", "Uyandırma kelimesi söylendiğinde uygulama açık değilse diğer uygulamaların üstünde küçük bir panel açılır.") {
             Anahtarli("Paneli göster", null, panel) { panel = it; a.panelGoster = it }
             Dugme("Paneli şimdi dene", DugmeTuru.BIRINCIL) { Panel.dene() }
@@ -292,8 +354,8 @@ fun SayfaPanel(geri: () -> Unit) {
         ) {
             Etiket(if (Motor.asistanSecili) "E.D.I.T.H. seçili ✓" else "Seçili değil", if (Motor.asistanSecili) "ok" else "gri")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Dugme("Asistan ayarını aç", DugmeTuru.BIRINCIL) { Motor.ayarAc("asistan") }
-                Dugme("Varsayılan uygulamalar") { Motor.ayarAc("varsayilan") }
+                Dugme("Asistan ayarını aç", DugmeTuru.BIRINCIL, Modifier.weight(1f)) { Motor.ayarAc("asistan") }
+                Dugme("Varsayılan uygulamalar", DugmeTuru.IKINCIL, Modifier.weight(1f)) { Motor.ayarAc("varsayilan") }
             }
             Text(
                 "Huawei/EMUI: Ayarlar → Uygulamalar → Varsayılan uygulamalar → Dijital asistan uygulaması.",
@@ -318,8 +380,8 @@ fun SayfaPanel(geri: () -> Unit) {
                 Etiket(if (Motor.pilMuaf) "muaf ✓" else "kısıtlı", if (Motor.pilMuaf) "ok" else "gri")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Dugme("Pil ayarı") { Motor.ayarAc("pil") }
-                Dugme("Uygulama izinleri") { Motor.ayarAc("uygulama") }
+                Dugme("Pil ayarı", DugmeTuru.IKINCIL, Modifier.weight(1f)) { Motor.ayarAc("pil") }
+                Dugme("Uygulama izinleri", DugmeTuru.IKINCIL, Modifier.weight(1f)) { Motor.ayarAc("uygulama") }
             }
             Text(
                 "Huawei'de ayrıca Pil → Uygulama başlatma → E.D.I.T.H. → “Elle yönet” içinde üç seçeneği de açman gerekebilir.",

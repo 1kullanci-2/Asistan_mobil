@@ -48,6 +48,7 @@ class Dinleyici(
     @Volatile var testModu = false
     @Volatile var kendiWake = false     // asistanın okuduğu metinde "edit" geçiyor mu
     private val takipIstegi = AtomicBoolean(false)
+    private val iptalIstegi = AtomicBoolean(false)
 
     private val halka = ArrayDeque<Pair<Int, ByteArray>>()
     private var no = 0
@@ -66,6 +67,12 @@ class Dinleyici(
     private var asim = UYANMA_ASIMI
 
     fun takipIste() = takipIstegi.set(true)
+
+    /** Başlamış ya da bekleyen komut dinlemesini bırakır (ör. kullanıcı yazmaya başladı). */
+    fun iptalIste() {
+        takipIstegi.set(false)
+        iptalIstegi.set(true)
+    }
 
     private fun post(f: () -> Unit) { ana.post { if (calisiyor) f() } }
     private fun simdi() = System.nanoTime() / 1e9
@@ -142,6 +149,12 @@ class Dinleyici(
         seviye(veri)
 
         if (testModu) return ozel(veri)
+        if (iptalIstegi.compareAndSet(true, false) && komut) {
+            sifirla()
+            devre = true
+            post { geri.komutBos() }
+            return
+        }
         oz?.let {
             runCatching { it.first.close(); it.second.close() }
             oz = null

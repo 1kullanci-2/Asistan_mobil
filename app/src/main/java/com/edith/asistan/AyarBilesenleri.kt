@@ -120,7 +120,7 @@ fun Dugme(yazi: String, tur: DugmeTuru = DugmeTuru.IKINCIL, mod: Modifier = Modi
         mod.clip(RoundedCornerShape(50)).background(zemin).clickable(onClick = tikla)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
-    ) { Text(yazi, color = yaziRenk, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+    ) { Text(yazi, color = yaziRenk, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
 }
 
 @Composable

@@ -65,6 +65,14 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                     drawCircle(renk, 2.7f * u, Offset(x * u, y * u))
                 }
             }
+            "gonder" -> {
+                drawLine(renk, Offset(12f * u, 19f * u), Offset(12f * u, 6f * u), 2.2f * u, StrokeCap.Round)
+                val p = Path()
+                p.moveTo(6.5f * u, 11.5f * u)
+                p.lineTo(12f * u, 6f * u)
+                p.lineTo(17.5f * u, 11.5f * u)
+                drawPath(p, renk, style = Stroke(width = 2.2f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
             "yeni" -> {
                 drawLine(renk, Offset(12f * u, 5f * u), Offset(12f * u, 19f * u), 2f * u, StrokeCap.Round)
                 drawLine(renk, Offset(5f * u, 12f * u), Offset(19f * u, 12f * u), 2f * u, StrokeCap.Round)
