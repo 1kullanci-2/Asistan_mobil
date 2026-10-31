@@ -741,7 +741,7 @@ object Motor : DinleyiciGeri {
             for (b in ayarlar.baglantilar) {
                 if (!b.acik) continue
                 val yas = System.currentTimeMillis() - (mcpSon[b.id] ?: 0L)
-                val limit = if (b.id in mcp) 10 * 60_000L else 20_000L
+                val limit = if (mcp.containsKey(b.id)) 10 * 60_000L else 20_000L
                 if (yas < limit) continue
                 mcpSon[b.id] = System.currentTimeMillis()
                 mcpBaglan(b)

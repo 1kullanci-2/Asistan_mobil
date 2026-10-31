@@ -21,7 +21,12 @@ jobs:
         with:
           gradle-version: "8.10.2"
       - name: Derle
-        run: gradle assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace 2>&1 | tee derleme.log || {
+            grep -E "^e: |What went wrong" -A2 derleme.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: edith-apk
