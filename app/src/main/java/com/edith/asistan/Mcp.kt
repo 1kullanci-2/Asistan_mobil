@@ -14,7 +14,7 @@ data class McpArac(val ad: String, val aciklama: String, val sema: JSONObject?)
 
 /** Basit MCP istemcisi (Streamable HTTP, JSON-RPC): initialize, tools/list, tools/call. */
 class McpIstemci(private val url: String, private val baslik: String = "") {
-    private val http = OkHttpClient.Builder().callTimeout(60, TimeUnit.SECONDS).build()
+    private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).callTimeout(60, TimeUnit.SECONDS).build()
     private var oturum: String? = null
     private var sayac = 0
     var araclar: List<McpArac> = emptyList()

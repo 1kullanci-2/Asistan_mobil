@@ -1,6 +1,12 @@
 package com.edith.asistan
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -13,7 +19,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -45,6 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
@@ -66,11 +79,12 @@ private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR
 fun Uygulama(onMik: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Visne)) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-            UstCubuk { Motor.ayarAcik = true }
+            UstCubuk { Motor.menuAcik = true }
             Sohbet(Modifier.weight(1f))
             DurumSatiri()
             GirisCubugu(onMik)
         }
+        YanPanel()
         if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
         OnayDiyalogu()
     }
@@ -94,15 +108,96 @@ fun OnayDiyalogu() {
 }
 
 @Composable
-fun UstCubuk(ayarlar: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("E.D.I.T.H", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-        Box(Modifier.weight(1f))
-        Text(
-            "Ayarlar",
-            Modifier.clip(RoundedCornerShape(50)).background(Krem).clickable(onClick = ayarlar)
-                .padding(horizontal = 16.dp, vertical = 9.dp),
-            color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.Medium
+fun UstCubuk(menu: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        CamDugme("menu", menu)
+    }
+}
+
+/** Yarı saydam film + ince parlak kenar: bulanıklık olmadan cam hissi verir. */
+@Composable
+fun CamDugme(simge: String, tikla: () -> Unit) {
+    Box(
+        Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f))
+            .border(1.dp, Color.White.copy(alpha = 0.32f), CircleShape).clickable(onClick = tikla),
+        contentAlignment = Alignment.Center
+    ) { Simge(simge, MetinKrem, Modifier.size(22.dp)) }
+}
+
+@Composable
+fun YanPanel() {
+    BackHandler(enabled = Motor.menuAcik) { Motor.menuAcik = false }
+    var silinecek by remember { mutableStateOf<SohbetBaslik?>(null) }
+    AnimatedVisibility(visible = Motor.menuAcik, enter = fadeIn(), exit = fadeOut()) {
+        Box(
+            Modifier.fillMaxSize().background(Color(0x59000000))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { Motor.menuAcik = false }
+        )
+    }
+    AnimatedVisibility(
+        visible = Motor.menuAcik,
+        enter = slideInHorizontally { -it },
+        exit = slideOutHorizontally { -it }
+    ) {
+        val sekil = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
+        Column(
+            Modifier.fillMaxHeight().width(304.dp).clip(sekil).background(VisneKoyu)
+                .border(1.dp, Color.White.copy(alpha = 0.22f), sekil)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .statusBarsPadding().navigationBarsPadding().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CamDugme("ayar") { Motor.menuAcik = false; Motor.ayarAcik = true }
+            }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.14f))
+                    .clickable { Motor.yeniSohbet() }.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Simge("yeni", MetinKrem, Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Yeni sohbet", color = MetinKrem, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            }
+            Text("Sohbetler", Modifier.padding(start = 6.dp), color = SolukKrem, fontSize = 12.sp)
+            if (Motor.sohbetler.isEmpty()) {
+                Text("Henüz sohbet yok.", Modifier.padding(start = 6.dp), color = SolukKrem, fontSize = 13.sp)
+            }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                items(Motor.sohbetler, key = { it.id }) { sb ->
+                    val secili = sb.id == Motor.aktifId
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .background(if (secili) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                            .clickable { Motor.sohbetAc(sb.id) }.padding(start = 14.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            sb.baslik, Modifier.weight(1f).padding(vertical = 12.dp), color = MetinKrem, fontSize = 15.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape).clickable { silinecek = sb },
+                            contentAlignment = Alignment.Center
+                        ) { Simge("cop", SolukKrem, Modifier.size(18.dp)) }
+                    }
+                }
+            }
+        }
+    }
+    silinecek?.let { sb ->
+        AlertDialog(
+            onDismissRequest = { silinecek = null },
+            containerColor = Krem,
+            title = { Text("Sohbet silinsin mi?", color = MetinKoyu) },
+            text = { Text("“${sb.baslik}” bu telefondan kalıcı olarak silinir.", color = MetinKoyu) },
+            confirmButton = {
+                Text(
+                    "Sil", Modifier.clickable { Motor.sohbetSil(sb.id); silinecek = null }.padding(12.dp),
+                    color = Hata, fontWeight = FontWeight.SemiBold
+                )
+            },
+            dismissButton = { Text("Vazgeç", Modifier.clickable { silinecek = null }.padding(12.dp), color = SolukKoyu) }
         )
     }
 }
@@ -110,16 +205,20 @@ fun UstCubuk(ayarlar: () -> Unit) {
 @Composable
 fun Sohbet(mod: Modifier) {
     val liste = rememberLazyListState()
+    val alt = remember {
+        listOf("Bugün ne yapıyoruz?", "Nasılsınız?", "E.D.I.T.H.'e hoş geldiniz", "Size nasıl yardımcı olabilirim?").random()
+    }
     val canliVar = Motor.faz == Faz.KOMUT && Motor.canli.isNotBlank()
-    val adet = Motor.mesajlar.size + (if (Motor.faz == Faz.ISLE) 1 else 0) + (if (canliVar) 1 else 0) +
+    val akan = Motor.akanMetin.isNotBlank() && (Motor.faz == Faz.ISLE || Motor.faz == Faz.KONUS)
+    val adet = Motor.mesajlar.size + (if (Motor.faz == Faz.ISLE || akan) 1 else 0) + (if (canliVar) 1 else 0) +
         (if (Motor.hata != null) 1 else 0)
-    LaunchedEffect(adet, Motor.canli) { if (adet > 0) liste.animateScrollToItem(adet - 1) }
+    LaunchedEffect(adet, Motor.canli, Motor.akanMetin.length / 40) { if (adet > 0) liste.animateScrollToItem(adet - 1) }
 
     if (Motor.mesajlar.isEmpty() && Motor.faz != Faz.ISLE && !canliVar) {
         Box(mod.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(karsilama(), color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 32.sp)
-                Text("E.D.I.T.H.'e hoş geldiniz", color = SolukKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp)
+                Text(alt, color = SolukKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp, textAlign = TextAlign.Center)
                 Motor.indirme?.let { Text(it, color = VurguAcik, fontSize = 13.sp) }
                 Motor.hata?.let { Text(it, color = HataAcik, fontSize = 13.sp) }
             }
@@ -132,12 +231,19 @@ fun Sohbet(mod: Modifier) {
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        items(Motor.mesajlar) { m -> if (m.kullanici) KullaniciBalonu(m.metin, 1f) else AsistanMetni(m.metin) }
+        items(Motor.mesajlar) { m ->
+            if (m.not) NotSatiri(m.metin) else if (m.kullanici) KullaniciBalonu(m.metin, 1f) else AsistanMetni(m.metin)
+        }
         if (canliVar) item { KullaniciBalonu(Motor.canli, 0.65f) }
-        if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
+        if (akan) item { AsistanMetni(Motor.akanMetin) } else if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
         Motor.indirme?.let { t -> item { Text(t, color = VurguAcik, fontSize = 13.sp) } }
         Motor.hata?.let { h -> item { Text(h, color = HataAcik, fontSize = 13.sp) } }
     }
+}
+
+@Composable
+fun NotSatiri(metin: String) {
+    Text(metin, Modifier.fillMaxWidth(), color = SolukKrem, fontSize = 12.sp, textAlign = TextAlign.Center)
 }
 
 @Composable

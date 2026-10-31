@@ -22,6 +22,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,6 +33,7 @@ import org.vosk.Model
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
 import java.util.zip.ZipInputStream
 
 enum class Faz { BOS, KOMUT, ISLE, KONUS }
@@ -54,6 +57,12 @@ object Motor : DinleyiciGeri {
 
     // ── Sohbet ve genel durum
     val mesajlar = mutableStateListOf<Mesaj>()
+    var akanMetin by mutableStateOf("")      // cevap yazılırken canlı görünen metin
+    var menuAcik by mutableStateOf(false)
+    val sohbetler = mutableStateListOf<SohbetBaslik>()
+    var aktifId by mutableStateOf<String?>(null)
+    private val kayitlar = mutableMapOf<String, SohbetKaydi>()
+    private var aktif: SohbetKaydi? = null
     var faz by mutableStateOf(Faz.BOS)
         private set
     var mikAcik by mutableStateOf(false)
@@ -104,8 +113,7 @@ object Motor : DinleyiciGeri {
     private var onizleJob: Job? = null
     private var oynatici: MediaPlayer? = null
     private var bekleyenTakip = false
-    private val mcp = mutableMapOf<String, McpIstemci>()
-    private val mcpDenendi = mutableSetOf<String>()
+    private val mcp = java.util.concurrent.ConcurrentHashMap<String, McpIstemci>()
 
     fun init(c: Context) {
         if (basladi) return
@@ -113,6 +121,17 @@ object Motor : DinleyiciGeri {
         ctx = c.applicationContext
         ayarlar = Ayarlar(ctx)
         izinYenile()
+        scope.launch {
+            val l = withContext(Dispatchers.IO) { Depo.yukle(ctx) }
+            l.forEach { kayitlar[it.id] = it }
+            listeYenile()
+        }
+        scope.launch { // MCP bağlantıları arka planda hazır tutulur
+            while (true) {
+                mcpTazele()
+                delay(60_000)
+            }
+        }
     }
 
     fun fazAyarla(f: Faz) {
@@ -214,6 +233,7 @@ object Motor : DinleyiciGeri {
         islemJob?.cancel()
         Ses.kes()
         canli = ""
+        akanMetin = ""
         fazAyarla(Faz.BOS)
     }
 
@@ -231,6 +251,7 @@ object Motor : DinleyiciGeri {
         if (kes) {
             islemJob?.cancel()
             Ses.kes()
+            akanMetin = ""
         }
         canli = ""
         fazAyarla(Faz.KOMUT)
@@ -262,6 +283,90 @@ object Motor : DinleyiciGeri {
 
     // ───────────── Sohbet ─────────────
 
+    // ───────────── Sohbet geçmişi ─────────────
+
+    private fun listeYenile() {
+        val l = kayitlar.values.filter { it.mesajlar.isNotEmpty() }
+            .sortedByDescending { it.guncelleme }.map { SohbetBaslik(it.id, it.baslik, it.guncelleme) }
+        sohbetler.clear()
+        sohbetler.addAll(l)
+    }
+
+    private fun kaydetKayit(k: SohbetKaydi) {
+        val ic = Depo.json(k)
+        listeYenile()
+        scope.launch(Dispatchers.IO) { Depo.yaz(ctx, k.id, ic) }
+    }
+
+    private fun kaydetAktif() {
+        val k = aktif ?: return
+        k.mesajlar.clear()
+        k.mesajlar.addAll(mesajlar.toList())
+        k.guncelleme = System.currentTimeMillis()
+        kaydetKayit(k)
+    }
+
+    private fun islemiDurdur() {
+        islemJob?.cancel()
+        Ses.kes()
+        akanMetin = ""
+        if (faz == Faz.ISLE || faz == Faz.KONUS) fazAyarla(Faz.BOS)
+    }
+
+    fun yeniSohbet() {
+        islemiDurdur()
+        aktif = null
+        aktifId = null
+        mesajlar.clear()
+        hata = null
+        menuAcik = false
+    }
+
+    fun sohbetAc(id: String) {
+        val k = kayitlar[id] ?: return
+        islemiDurdur()
+        aktif = k
+        aktifId = id
+        mesajlar.clear()
+        mesajlar.addAll(k.mesajlar)
+        hata = null
+        menuAcik = false
+    }
+
+    fun sohbetSil(id: String) {
+        if (aktifId == id) yeniSohbet()
+        kayitlar.remove(id)
+        listeYenile()
+        scope.launch(Dispatchers.IO) { Depo.sil(ctx, id) }
+    }
+
+    private fun baslikAyarla(k: SohbetKaydi, b: String) {
+        scope.launch {
+            k.baslik = b.take(40)
+            kaydetKayit(k)
+        }
+    }
+
+    /** Konuşma uzadıkça eski kısmı arka planda özetler; sohbetler arasında gezmek istek harcamaz. */
+    private fun ozetGuncelle(k: SohbetKaydi) {
+        val tum = k.mesajlar.filter { !it.not }
+        val hedef = tum.size - 6
+        if (hedef - k.ozetKapsam < 6) return
+        val parca = tum.subList(k.ozetKapsam, hedef).toList()
+        scope.launch {
+            val y = runCatching { Gemini.ozetle(ayarlar, k.ozet, parca) }.getOrNull() ?: return@launch
+            if (y.isNotBlank()) {
+                k.ozet = y
+                k.ozetKapsam = hedef
+                kaydetKayit(k)
+            }
+        }
+    }
+
+    // ───────────── Sohbet ─────────────
+
+    private val cumleSonu = Regex("""[.!?…]["”')»]*\s+|\n+""")
+
     fun gonder(metin: String, sesli: Boolean) {
         val m = metin.trim()
         if (m.isEmpty()) return
@@ -275,50 +380,149 @@ object Motor : DinleyiciGeri {
             islemJob?.cancel()
             Ses.kes()
         }
-        val gecmis = mesajlar.toList()
+        akanMetin = ""
+        var k = aktif
+        val ilk = k == null
+        if (k == null) {
+            k = SohbetKaydi(UUID.randomUUID().toString().take(12), m.take(32), System.currentTimeMillis())
+            aktif = k
+            aktifId = k.id
+            kayitlar[k.id] = k
+        }
+        val kayit: SohbetKaydi = k
+        val (ozet, yakin) = Baglam.hazirla(kayit, mesajlar.filter { !it.not })
         mesajlar.add(Mesaj(true, m))
+        kaydetAktif()
         hata = null
         fazAyarla(Faz.ISLE)
+
         islemJob = scope.launch {
             var soru = false
+            val kullanilan = linkedSetOf<String>()
+            val konus = sesli || !ayarlar.sadeceSesliKomutta
+            val cumleler = Channel<String>(Channel.UNLIMITED)
+            val sesler = Channel<ByteArray>(2)
+            val tampon = StringBuilder()
+            var ilkGitti = false
+            var sesHatasi = false
+            dinleyici?.kendiWake = false
+
+            fun cumleGonder(c: String) {
+                if (c.isBlank()) return
+                if (Uyandirma.ara(c, false) != null) dinleyici?.kendiWake = true
+                cumleler.trySend(c)
+            }
+
+            // İlk parça kısa (hemen konuşmaya başlasın), sonrakiler uzun (ses motoru istek sayısı az kalsın).
+            fun cumleCikar(son: Boolean) {
+                while (true) {
+                    val s = tampon.toString()
+                    if (!son && Regex("```").findAll(s).count() % 2 == 1) return
+                    val esik = if (ilkGitti) 250 else 25
+                    val bul = if (s.length > esik) cumleSonu.find(s, esik) else null
+                    if (bul != null) {
+                        val c = s.substring(0, bul.range.last + 1)
+                        tampon.delete(0, bul.range.last + 1)
+                        ilkGitti = true
+                        cumleGonder(c)
+                    } else {
+                        if (son && s.isNotBlank()) {
+                            cumleGonder(s)
+                            tampon.setLength(0)
+                        }
+                        return
+                    }
+                }
+            }
+
             try {
-                mcpHazirla()
-                val (araclar, esle) = mcpAraclari()
-                val cevap = Gemini.sor(ayarlar, gecmis, m, araclar) { ad, args ->
-                    val (ist, gercek) = esle[ad] ?: return@sor "Bilinmeyen araç: $ad"
-                    if (ayarlar.mcpSilmeOnayi && "sil" in gercek.lowercase().split("_")) {
-                        if (!onayIste("“$gercek” aracı çalıştırılsın mı? (silme işlemi)")) {
-                            return@sor "Kullanıcı bu işlemi onaylamadı."
+                coroutineScope {
+                    if (konus) {
+                        launch(Dispatchers.IO) {
+                            try {
+                                for (c in cumleler) {
+                                    val pcm = try {
+                                        Ses.sentez(ayarlar, c)
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        if (hata == null) hata = "Ses üretilemedi: ${e.message}"
+                                        sesHatasi = true
+                                        null
+                                    }
+                                    if (sesHatasi) break
+                                    if (pcm != null) sesler.send(pcm)
+                                }
+                            } finally {
+                                sesler.close()
+                            }
+                        }
+                        launch {
+                            for (pcm in sesler) {
+                                if (faz != Faz.KONUS) fazAyarla(Faz.KONUS)
+                                Ses.cal(pcm)
+                            }
                         }
                     }
-                    ist.cagir(gercek, args)
-                }
-                soru = cevap.soru
-                dinleyici?.kendiWake = Uyandirma.ara(cevap.metin, false) != null
-                var pcm: ByteArray? = null
-                if (sesli || !ayarlar.sadeceSesliKomutta) {
-                    try {
-                        pcm = Ses.sentez(ayarlar, cevap.metin)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        hata = "Ses üretilemedi: ${e.message}"
+
+                    mcpBekle()
+                    val (araclar, esle) = mcpAraclari()
+                    val cevap = Gemini.sor(
+                        ayarlar, ozet, yakin, m, ilk, araclar,
+                        akis = { d ->
+                            akanMetin += d
+                            if (konus) {
+                                tampon.append(d)
+                                cumleCikar(false)
+                            }
+                        },
+                        bildir = { n -> mesajlar.add(Mesaj(false, n, not = true)) },
+                        baslik = { b -> if (ilk && b.isNotBlank()) baslikAyarla(kayit, b) },
+                        cagir = cagir@{ ad, args ->
+                            val (ist, gercek, bag) = esle[ad] ?: return@cagir "Bilinmeyen araç: $ad"
+                            if (ayarlar.mcpSilmeOnayi && "sil" in gercek.lowercase().split("_")) {
+                                if (!onayIste("“$gercek” aracı çalıştırılsın mı? (silme işlemi)")) {
+                                    return@cagir "Kullanıcı bu işlemi onaylamadı."
+                                }
+                            }
+                            kullanilan.add(gercek)
+                            try {
+                                ist.cagir(gercek, args)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                // oturum düşmüş olabilir: bir kez yeniden bağlan, tekrar dene
+                                mcpBaglan(bag)
+                                val yeni = mcp[bag.id] ?: throw e
+                                yeni.cagir(gercek, args)
+                            }
+                        }
+                    )
+                    soru = cevap.soru
+                    mesajlar.add(Mesaj(false, cevap.metin, kullanilan.toList()))
+                    akanMetin = ""
+                    kaydetAktif()
+                    if (konus) {
+                        cumleCikar(true)
+                        cumleler.close()
                     }
-                }
-                mesajlar.add(Mesaj(false, cevap.metin)) // metin ve ses birlikte hazır olunca
-                if (pcm != null) {
-                    fazAyarla(Faz.KONUS)
-                    Ses.cal(pcm)
-                }
+                } // ses bitene kadar bekler
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 hata = e.message ?: "Bilinmeyen hata"
+                val yarim = akanMetin.trim()
+                if (yarim.isNotEmpty()) {
+                    mesajlar.add(Mesaj(false, yarim, kullanilan.toList()))
+                    kaydetAktif()
+                }
             }
+            akanMetin = ""
             fazAyarla(Faz.BOS)
             if (mikAcik && hata == null && ((soru && ayarlar.soruSorunca) || ayarlar.herCevapta)) {
                 dinleyici?.takipIste()
             }
+            ozetGuncelle(kayit)
         }
     }
 
@@ -522,22 +726,37 @@ object Motor : DinleyiciGeri {
     fun mcpSil(b: Baglanti) {
         mcp.remove(b.id)
         mcpDurum.remove(b.id)
-        mcpDenendi.remove(b.id)
+        mcpSon.remove(b.id)
     }
 
     fun mcpAraclarListesi(b: Baglanti): List<McpArac> = mcp[b.id]?.araclar.orEmpty()
 
-    private suspend fun mcpHazirla() {
-        for (b in ayarlar.baglantilar) {
-            if (!b.acik || b.id in mcp || b.id in mcpDenendi) continue
-            mcpDenendi.add(b.id)
-            mcpBaglan(b)
+    private var mcpIs: Job? = null
+    private val mcpSon = mutableMapOf<String, Long>()
+
+    /** Açık bağlantıları arka planda kurar/tazeler: bağlı olanı 10 dk'da bir, düşmüş olanı 20 sn'de bir dener. */
+    private fun mcpTazele() {
+        if (mcpIs?.isActive == true) return
+        mcpIs = scope.launch {
+            for (b in ayarlar.baglantilar) {
+                if (!b.acik) continue
+                val yas = System.currentTimeMillis() - (mcpSon[b.id] ?: 0L)
+                val limit = if (b.id in mcp) 10 * 60_000L else 20_000L
+                if (yas < limit) continue
+                mcpSon[b.id] = System.currentTimeMillis()
+                mcpBaglan(b)
+            }
         }
     }
 
-    private fun mcpAraclari(): Pair<List<GeminiArac>, Map<String, Pair<McpIstemci, String>>> {
+    private suspend fun mcpBekle() {
+        mcpTazele()
+        withTimeoutOrNull(10_000) { mcpIs?.join() }
+    }
+
+    private fun mcpAraclari(): Pair<List<GeminiArac>, Map<String, Triple<McpIstemci, String, Baglanti>>> {
         val liste = mutableListOf<GeminiArac>()
-        val esle = mutableMapOf<String, Pair<McpIstemci, String>>()
+        val esle = mutableMapOf<String, Triple<McpIstemci, String, Baglanti>>()
         ayarlar.baglantilar.forEachIndexed { i, b ->
             if (!b.acik) return@forEachIndexed
             val ist = mcp[b.id] ?: return@forEachIndexed
@@ -545,7 +764,7 @@ object Motor : DinleyiciGeri {
                 if (a.ad in b.kapaliAraclar) continue
                 val ad = ("m${i}_" + a.ad.replace(Regex("[^A-Za-z0-9_]"), "_")).take(64)
                 liste.add(GeminiArac(ad, a.aciklama, a.sema))
-                esle[ad] = ist to a.ad
+                esle[ad] = Triple(ist, a.ad, b)
             }
         }
         return liste to esle

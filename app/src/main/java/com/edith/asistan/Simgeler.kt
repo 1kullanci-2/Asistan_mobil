@@ -55,6 +55,25 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                 drawRoundRect(renk, Offset(6f * u, 2.5f * u), Size(12f * u, 19f * u), CornerRadius(3f * u), style = kalem)
                 drawRoundRect(renk, Offset(8.5f * u, 15.5f * u), Size(7f * u, 3.2f * u), CornerRadius(1.6f * u))
             }
+            "menu" -> {
+                for (y in listOf(7f, 12f, 17f)) drawLine(renk, Offset(4f * u, y * u), Offset(20f * u, y * u), 2f * u, StrokeCap.Round)
+            }
+            "ayar" -> { // kaydırıcılar
+                val satirlar = listOf(6f to 15f, 12f to 8f, 18f to 14f)
+                for ((y, x) in satirlar) {
+                    drawLine(renk, Offset(4f * u, y * u), Offset(20f * u, y * u), 1.9f * u, StrokeCap.Round)
+                    drawCircle(renk, 2.7f * u, Offset(x * u, y * u))
+                }
+            }
+            "yeni" -> {
+                drawLine(renk, Offset(12f * u, 5f * u), Offset(12f * u, 19f * u), 2f * u, StrokeCap.Round)
+                drawLine(renk, Offset(5f * u, 12f * u), Offset(19f * u, 12f * u), 2f * u, StrokeCap.Round)
+            }
+            "cop" -> {
+                drawLine(renk, Offset(5f * u, 7f * u), Offset(19f * u, 7f * u), 1.9f * u, StrokeCap.Round)
+                drawLine(renk, Offset(10f * u, 4f * u), Offset(14f * u, 4f * u), 1.9f * u, StrokeCap.Round)
+                drawRoundRect(renk, Offset(7f * u, 9.5f * u), Size(10f * u, 10.5f * u), CornerRadius(2.5f * u), style = kalem)
+            }
             "geri" -> {
                 val p = Path()
                 p.moveTo(15f * u, 5f * u)
