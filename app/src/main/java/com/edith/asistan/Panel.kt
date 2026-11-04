@@ -23,6 +23,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -96,11 +101,11 @@ object Panel {
     @Volatile var kendimAcildi = false
 
     fun guncelle() {
-        val gerek = Motor.faz != Faz.BOS && (zorla || (Motor.ayarlar.panelGoster && !Motor.onde))
+        val gerek = (Motor.faz != Faz.BOS || Motor.kapatSorusu) && (zorla || (Motor.ayarlar.panelGoster && !Motor.onde))
         if (gerek) {
             goster()
         } else if (Motor.panelGorunur) {
-            ana.postDelayed({ if (Motor.faz == Faz.BOS && !zorla) gizle() }, 1200)
+            ana.postDelayed({ if (Motor.faz == Faz.BOS && !zorla && !Motor.kapatSorusu) gizle() }, 1200)
         }
     }
 
@@ -123,6 +128,7 @@ object Panel {
     fun gizle() {
         if (!Motor.panelGorunur) return
         Motor.panelGorunur = false
+        Motor.kapatSorusu = false
         OverlayHost.gizle(Motor.ctx)
         runCatching { EdithOturum.aktif?.hide() }
     }
@@ -184,13 +190,16 @@ object OverlayHost {
 @Composable
 fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
     val etkilesim = remember { MutableInteractionSource() }
-    val dis = if (tamEkran) Modifier.fillMaxSize().clickable(interactionSource = etkilesim, indication = null, onClick = kapat)
+    // Panelin dışına dokunmak hemen kapatmaz; önce "Kapatılsın mı?" diye sorar.
+    val dis = if (tamEkran) Modifier.fillMaxSize().clickable(interactionSource = etkilesim, indication = null) { Motor.disaDokunuldu() }
     else Modifier.fillMaxWidth()
     Column(dis, verticalArrangement = Arrangement.Bottom) {
         val sekil = RoundedCornerShape(30.dp)
+        if (tamEkran && Motor.kapatSorusu) KapatSorusu(kapat)
         Column(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp)
-                .clip(sekil).background(Krem).border(1.dp, KremKoyu, sekil)
+                .clip(sekil).background(Krem.copy(alpha = 0.94f))
+                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), KremKoyu)), sekil)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
@@ -202,8 +211,6 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
             }
             Row(Modifier.fillMaxWidth()) {
                 Text(durum, color = if (Motor.faz == Faz.KOMUT) Yesil else SolukKoyu, fontSize = 13.sp)
-                Spacer(Modifier.weight(1f))
-                Text("Kapat", Modifier.clickable(onClick = kapat), color = SolukKoyu, fontSize = 13.sp)
             }
             Dalga(Modifier.fillMaxWidth().height(56.dp))
             Spacer(Modifier.height(6.dp))
@@ -229,6 +236,37 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
             }
         }
     }
+}
+
+/** Panelin üstünde beliren soru: iki düğme, "Evet" paneli kapatır, "Hayır" dinlemeye devam eder. */
+@Composable
+fun KapatSorusu(evet: () -> Unit) {
+    val sekil = RoundedCornerShape(26.dp)
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(sekil).background(Visne.copy(alpha = 0.94f))
+            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.18f))), sekil)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Kapatılsın mı?", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 18.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PanelDugme("Evet", Modifier.weight(1f), true, evet)
+            PanelDugme("Hayır, dinle", Modifier.weight(1f), false) { Motor.kapatCevap(false) }
+        }
+    }
+}
+
+@Composable
+private fun PanelDugme(yazi: String, mod: Modifier, vurgulu: Boolean, tikla: () -> Unit) {
+    val sekil = RoundedCornerShape(50)
+    Box(
+        mod.height(44.dp).clip(sekil)
+            .background(if (vurgulu) Krem else Color.White.copy(alpha = 0.16f))
+            .border(1.dp, Color.White.copy(alpha = if (vurgulu) 0.9f else 0.32f), sekil)
+            .clickable(onClick = tikla),
+        contentAlignment = Alignment.Center
+    ) { Text(yazi, color = if (vurgulu) MetinKoyu else MetinKrem, fontSize = 15.sp, fontWeight = FontWeight.Medium) }
 }
 
 /** İki üst üste binen ince çizgi; genlik mikrofon seviyesini (dinlerken) ya da konuşma ritmini izler. */

@@ -66,6 +66,11 @@ class Dinleyici(
     private var bas = 0.0
     private var asim = UYANMA_ASIMI
 
+    // Sessizlik kapısı: ortam gürültüsünü izler, konuşma yokken tanıyıcıyı çalıştırmaz (pil)
+    private var taban = 120.0
+    private var kapiAcik = false
+    private var sessizBlok = 0
+
     fun takipIste() = takipIstegi.set(true)
 
     /** Başlamış ya da bekleyen komut dinlemesini bırakır (ör. kullanıcı yazmaya başladı). */
@@ -146,7 +151,8 @@ class Dinleyici(
         no++
         halka.addLast(no to veri)
         if (halka.size > 40) halka.removeFirst()
-        seviye(veri)
+        val rms = rms(veri)
+        if (testModu || Motor.faz == Faz.KOMUT) post { geri.seviye(min(1f, (rms / 4000.0).toFloat())) }
 
         if (testModu) return ozel(veri)
         if (iptalIstegi.compareAndSet(true, false) && komut) {
@@ -177,18 +183,53 @@ class Dinleyici(
             halka.clear()
             return komuta(0, Motor.ayarlar.takipZamanAsimi.toDouble())
         }
+        if (Motor.ayarlar.sessizlikKapisi && !kapi(rms)) return
         bekle(veri, false, false)
     }
 
-    private fun seviye(veri: ByteArray) {
+    private fun rms(veri: ByteArray): Double {
         var s = 0.0
         val n = veri.size / 2
         for (i in 0 until n) {
             val v = ((veri[2 * i + 1].toInt() shl 8) or (veri[2 * i].toInt() and 0xFF)).toShort().toInt()
             s += v.toDouble() * v
         }
-        val d = min(1f, (sqrt(s / n) / 4000.0).toFloat())
-        post { geri.seviye(d) }
+        return sqrt(s / n)
+    }
+
+    /**
+     * Bekleme sırasında yalnızca ortamdan belirgin yüksek ses varken tanıyıcıyı çalıştırır. Kapı açılırken son
+     * ~0,4 sn'lik ses de tanıyıcıya verilir ki kelimenin başı kesilmesin; ~1 sn sessizlikten sonra kapanır.
+     * @return bu blok tanıyıcıya verilsin mi
+     */
+    private fun kapi(r: Double): Boolean {
+        val esik = maxOf(taban * 2.4, 170.0)
+        val ses = r > esik
+        // gürültü tabanı: sessizken yavaşça oturur, yükselirken çok yavaş izler
+        taban = (if (r < taban * 1.5) taban * 0.97 + r * 0.03 else taban * 0.998 + r * 0.002).coerceIn(40.0, 1500.0)
+        if (ses) {
+            sessizBlok = 0
+            if (!kapiAcik) {
+                kapiAcik = true
+                if (enR == null) { enR = yeniEn(); say = 0 }
+                val r2 = enR
+                if (r2 != null) {
+                    val gecmis = halka.toList().dropLast(1).takeLast(3)
+                    for ((_, b) in gecmis) r2.acceptWaveForm(b, b.size)
+                }
+            }
+            return true
+        }
+        if (!kapiAcik) return false
+        if (++sessizBlok > 8) {
+            kapiAcik = false
+            sessizBlok = 0
+            runCatching { enR?.close() }
+            enR = null
+            say = 0
+            return false
+        }
+        return true
     }
 
     /** Mikrofon testi ve uyandırma öğrenme: iki tanıyıcı da ne duyduğunu gösterir. */

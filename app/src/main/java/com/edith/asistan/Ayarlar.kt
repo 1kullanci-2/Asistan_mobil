@@ -120,6 +120,15 @@ class Ayarlar(ctx: Context) {
         get() = bool("surekli_dinleme", false)
         set(v) = bool("surekli_dinleme", false, v)
 
+    // ── Kurulum ve pil
+    var kurulumTamam: Boolean
+        get() = bool("kurulum_tamam", false)
+        set(v) = bool("kurulum_tamam", false, v)
+    /** Sessizlikte Vosk'a ses göndermez (pil tasarrufu); konuşma başlayınca otomatik uyanır. */
+    var sessizlikKapisi: Boolean
+        get() = bool("sessizlik_kapisi", true)
+        set(v) = bool("sessizlik_kapisi", true, v)
+
     // ── Panel
     var panelGoster: Boolean
         get() = bool("panel_goster", true)

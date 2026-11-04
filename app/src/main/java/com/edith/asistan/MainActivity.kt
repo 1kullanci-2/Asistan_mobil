@@ -20,6 +20,11 @@ class MainActivity : ComponentActivity() {
         else Motor.hata = "Mikrofon izni verilmedi; Ayarlar → İzinler bölümünden açabilirsin."
     }
 
+    /** İlk kurulum ekranındaki izin düğmeleri: sonucu yalnızca durumu yeniler, dinlemeyi başlatmaz. */
+    private val kurulumIzni = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        Motor.izinYenile()
+    }
+
     private fun verildi(izin: String) =
         ContextCompat.checkSelfPermission(this, izin) == PackageManager.PERMISSION_GRANTED
 
@@ -32,12 +37,28 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Motor.init(applicationContext)
+        Motor.acilistaYukle()   // modeller her açılışta arka planda hazırlanır
+        sohbetIntenti(intent)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
         setContent {
-            EdithTema { Uygulama(onMik = ::mikrofonDugmesi) }
+            EdithTema { Uygulama(onMik = ::mikrofonDugmesi, onIzin = { kurulumIzni.launch(it) }) }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        sohbetIntenti(intent)
+    }
+
+    /** Cevap bildirimine dokunulduysa o sohbeti açar. */
+    private fun sohbetIntenti(i: android.content.Intent?) {
+        i?.getStringExtra("sohbet")?.let {
+            Motor.sohbetAcSonra(it)
+            i.removeExtra("sohbet")
         }
     }
 
@@ -47,7 +68,8 @@ class MainActivity : ComponentActivity() {
         Motor.izinYenile()
         Panel.gizle() // uygulama öndeyken ekran üstü panel gerekmez
         // Uygulama açıkken "hey edit" bildirimsiz dinlenir
-        if (Motor.izinMikrofon && Motor.modellerHazir && !Motor.mikAcik) Motor.mikrofonAc()
+        if (Motor.izinMikrofon && Motor.modellerHazir && !Motor.mikAcik && !Motor.kurulumGoster) Motor.mikrofonAc()
+        else if (!Motor.modellerHazir) Motor.acilistaYukle()
     }
 
     override fun onPause() {

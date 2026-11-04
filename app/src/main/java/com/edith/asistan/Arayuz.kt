@@ -60,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -82,6 +83,12 @@ fun Modifier.kart(sekil: Shape = RoundedCornerShape(22.dp), renk: Color = Krem):
     .background(renk)
     .border(1.dp, KremKoyu, sekil)
 
+/** Sıvı cam: üstten alta açılan beyaz film + parlak üst kenar; bulanıklık yok (Android 10'da gerçek blur yok). */
+fun Modifier.cam(sekil: Shape = RoundedCornerShape(22.dp), guc: Float = 1f): Modifier = this
+    .clip(sekil)
+    .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f * guc), Color.White.copy(alpha = 0.14f * guc))))
+    .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.8f), Color.White.copy(alpha = 0.16f))), sekil)
+
 private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "Günaydın"
     in 12..17 -> "İyi günler"
@@ -90,16 +97,36 @@ private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR
 }
 
 @Composable
-fun Uygulama(onMik: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Visne)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-            UstCubuk { Motor.menuAcik = true }
-            Sohbet(Modifier.weight(1f))
-            GirisCubugu(onMik)
+fun Uygulama(onMik: () -> Unit, onIzin: (Array<String>) -> Unit = {}) {
+    // Cam yüzeylerin cam gibi görünmesi için arkada yumuşak ışık lekeleri olur (aynı gül kurusu tonları).
+    Box(
+        Modifier.fillMaxSize().background(Visne).drawBehind {
+            drawRect(
+                Brush.radialGradient(
+                    listOf(VisneAcik.copy(alpha = 0.75f), Color.Transparent),
+                    center = Offset(size.width * 0.15f, size.height * 0.08f), radius = size.width * 1.1f
+                )
+            )
+            drawRect(
+                Brush.radialGradient(
+                    listOf(VisneKoyu.copy(alpha = 0.7f), Color.Transparent),
+                    center = Offset(size.width * 0.95f, size.height * 0.95f), radius = size.width * 1.2f
+                )
+            )
         }
-        YanPanel()
-        if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
-        OnayDiyalogu()
+    ) {
+        if (Motor.kurulumGoster) {
+            Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { KurulumEkrani(onIzin) }
+        } else {
+            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
+                UstCubuk { Motor.menuAcik = true }
+                Sohbet(Modifier.weight(1f))
+                GirisCubugu(onMik)
+            }
+            YanPanel()
+            if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
+            OnayDiyalogu()
+        }
     }
 }
 
@@ -265,7 +292,7 @@ fun KullaniciBalonu(metin: String, alfa: Float) {
         Text(
             metin,
             Modifier.widthIn(max = 300.dp).alpha(alfa)
-                .kart(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp))
+                .cam(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             color = MetinKoyu, fontSize = 16.sp
         )
@@ -334,7 +361,7 @@ fun GirisCubugu(onMik: () -> Unit) {
     LaunchedEffect(yaziVar) { if (yaziVar && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
-            .kart(RoundedCornerShape(32.dp))
+            .cam(RoundedCornerShape(32.dp))
             .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -342,7 +369,7 @@ fun GirisCubugu(onMik: () -> Unit) {
             value = metin,
             onValueChange = { metin = it },
             modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() },
-            placeholder = { Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = SolukKoyu) },
+            placeholder = { Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = MetinKoyu.copy(alpha = 0.6f)) },
             maxLines = 4,
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,

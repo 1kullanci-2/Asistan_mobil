@@ -147,6 +147,14 @@ object Gemini {
     private val istemci = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS)
         .callTimeout(180, TimeUnit.SECONDS).retryOnConnectionFailure(true).build()
+    /** Bağlantıyı önceden açar (DNS+TLS+HTTP/2); ilk mesaj "ısınmadan" gitmesin. */
+    fun isin() {
+        runCatching {
+            istemci.newCall(okhttp3.Request.Builder().url("https://generativelanguage.googleapis.com/").head().build())
+                .execute().close()
+        }
+    }
+
     private val soruIsareti = Regex("""\[\s*SORU\s*]""", RegexOption.IGNORE_CASE)
     private val soruSonu = Regex("""\?[\s"'”)»*_]*$""")
     private val kodBlogu = Regex("```[\\s\\S]*?```")

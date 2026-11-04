@@ -174,6 +174,7 @@ fun SayfaMikrofon(geri: () -> Unit) {
     var titresim by remember { mutableStateOf(a.titresim) }
     var takip by remember { mutableStateOf(a.takipZamanAsimi) }
     var sessizlik by remember { mutableStateOf(a.sessizlikSuresi) }
+    var kapi by remember { mutableStateOf(a.sessizlikKapisi) }
     SayfaCerceve("Mikrofon", geri) {
         HataKutusu()
         Bolum("Mikrofon testi", "Konuş ve iki dilin ne duyduğunu gör. Test bitince mikrofon kendiliğinden kapanır.") {
@@ -198,6 +199,11 @@ fun SayfaMikrofon(geri: () -> Unit) {
                 her = it; a.herCevapta = it
             }
             Anahtarli("Titreşim", "Dinlemeye başlarken kısa titreşim.", titresim) { titresim = it; a.titresim = it }
+            Anahtarli(
+                "Sessizlikte pil tasarrufu",
+                "Ortam sessizken ses tanıma durur, konuşma başlayınca kendiliğinden devreye girer. “Hey edit” zor algılanırsa kapat.",
+                kapi
+            ) { kapi = it; a.sessizlikKapisi = it }
         }
         Bolum("Süreler") {
             Satir("Takip zaman aşımı", "Cevaptan sonra konuşmanı bekleme süresi.") {
