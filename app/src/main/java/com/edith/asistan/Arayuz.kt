@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -126,6 +127,7 @@ fun Uygulama(onMik: () -> Unit, onIzin: (Array<String>) -> Unit = {}) {
             YanPanel()
             if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
             OnayDiyalogu()
+            ModelPaneli()
         }
     }
 }
@@ -361,14 +363,16 @@ fun GirisCubugu(onMik: () -> Unit) {
     LaunchedEffect(yaziVar) { if (yaziVar && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
-            .cam(RoundedCornerShape(32.dp))
-            .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .cam(RoundedCornerShape(30.dp))
+            .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.Bottom
     ) {
+        ModelKutusu(Modifier.padding(bottom = 11.dp))
         TextField(
             value = metin,
             onValueChange = { metin = it },
-            modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() },
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 17.sp),
+            modifier = Modifier.weight(1f).heightIn(min = 58.dp).onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() },
             placeholder = { Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = MetinKoyu.copy(alpha = 0.6f)) },
             maxLines = 4,
             colors = TextFieldDefaults.colors(
@@ -381,7 +385,7 @@ fun GirisCubugu(onMik: () -> Unit) {
                 unfocusedTextColor = MetinKoyu
             )
         )
-        Box(contentAlignment = Alignment.Center) {
+        Box(Modifier.padding(bottom = 3.dp), contentAlignment = Alignment.Center) {
             if (dinliyor) { // ses seviyesiyle nefes alan düz halka
                 Box(
                     Modifier.size(46.dp)
@@ -406,6 +410,81 @@ fun GirisCubugu(onMik: () -> Unit) {
                     },
                     label = "gonder"
                 ) { yaz -> Simge(if (yaz) "gonder" else "mik", KremAcik, Modifier.size(24.dp)) }
+            }
+        }
+    }
+}
+
+/** Seçimi ("servis|model") kutuya sığacak kısa bir ada çevirir. */
+private fun kisaModel(secim: String): String {
+    val m = secim.substringAfter("|", "").substringAfterLast("/").removePrefix("gemini-")
+    return m.ifBlank { "model" }
+}
+
+/** Giriş çubuğunun solundaki küçük kutucuk: seçili modeli gösterir, dokununca alt paneli açar. */
+@Composable
+fun ModelKutusu(mod: Modifier = Modifier) {
+    val sekil = RoundedCornerShape(14.dp)
+    Text(
+        kisaModel(Motor.secim),
+        mod.widthIn(max = 92.dp).clip(sekil).background(Color.White.copy(alpha = 0.22f))
+            .border(1.dp, Color.White.copy(alpha = 0.5f), sekil)
+            .clickable { Motor.modelPaneli = true }
+            .padding(horizontal = 9.dp, vertical = 6.dp),
+        color = MetinKoyu, fontSize = 11.sp, maxLines = 1,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+    )
+}
+
+/** Alttan açılan panel: anahtarı girilmiş bütün servislerin seçili modelleri; birine dokunarak geçilir. */
+@Composable
+fun ModelPaneli() {
+    BackHandler(Motor.modelPaneli) { Motor.modelPaneli = false }
+    val a = Motor.ayarlar
+    AnimatedVisibility(
+        visible = Motor.modelPaneli,
+        enter = fadeIn(tween(160)),
+        exit = fadeOut(tween(120))
+    ) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { Motor.modelPaneli = false },
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            val sekil = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            Column(
+                Modifier.fillMaxWidth().clip(sekil).background(Krem.copy(alpha = 0.97f))
+                    .border(1.dp, Color.White.copy(alpha = 0.7f), sekil)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .navigationBarsPadding().padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Model seç", color = MetinKoyu, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, fontSize = 20.sp)
+                val servisler = Ayarlar.YAPAY_ZEKA_SERVISLER.filter { a.servisAnahtar(it).isNotBlank() }
+                if (servisler.isEmpty()) {
+                    Text("Henüz API anahtarı girilmedi. Ayarlar → Yapay zeka bölümünden bir servis ekle.", color = SolukKoyu, fontSize = 14.sp)
+                }
+                servisler.forEach { servis ->
+                    Text(Ayarlar.YAPAY_ZEKA_AD[servis] ?: servis, color = SolukKoyu, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    val modeller = a.servisModelleri(servis)
+                    if (modeller.isEmpty()) Text("Model seçilmedi (Ayarlar → Yapay zeka).", color = SolukKoyu, fontSize = 13.sp)
+                    modeller.forEach { m ->
+                        val deger = "$servis|$m"
+                        val secili = Motor.secim == deger
+                        val s2 = RoundedCornerShape(16.dp)
+                        Row(
+                            Modifier.fillMaxWidth().clip(s2)
+                                .background(if (secili) Vurgu.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.4f))
+                                .border(1.dp, if (secili) Vurgu else KremKoyu, s2)
+                                .clickable { Motor.modelSec(deger) }
+                                .padding(horizontal = 14.dp, vertical = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(m, Modifier.weight(1f), color = MetinKoyu, fontSize = 15.sp)
+                            if (secili) Text("✓", color = Vurgu, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
     }

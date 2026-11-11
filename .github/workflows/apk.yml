@@ -37,4 +37,4 @@ jobs:
         run: |
           gh release delete son-surum --cleanup-tag -y || true
           gh release create son-surum app/build/outputs/apk/debug/app-debug.apk \
-            --title "Son sürüm" --notes "Otomatik derleme: ${{ github.sha }}" --prerelease
+            --title "Son sürüm" --notes "Sürüm: 0.3.${GITHUB_RUN_NUMBER} · Otomatik derleme: ${{ github.sha }}" --prerelease

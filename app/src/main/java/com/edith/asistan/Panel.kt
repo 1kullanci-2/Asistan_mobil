@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -194,45 +195,47 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
     val dis = if (tamEkran) Modifier.fillMaxSize().clickable(interactionSource = etkilesim, indication = null) { Motor.disaDokunuldu() }
     else Modifier.fillMaxWidth()
     Column(dis, verticalArrangement = Arrangement.Bottom) {
-        val sekil = RoundedCornerShape(30.dp)
+        val sekil = RoundedCornerShape(32.dp)
         if (tamEkran && Motor.kapatSorusu) KapatSorusu(kapat)
-        Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp)
+        // İnce kapsül: solda küçük dalga, sağda durum ve canlı yazı tek blokta
+        Row(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp)
                 .clip(sekil).background(Krem.copy(alpha = 0.94f))
                 .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), KremKoyu)), sekil)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Dalga(Modifier.width(54.dp).height(34.dp))
             val durum = when (Motor.faz) {
                 Faz.KOMUT -> "Dinleniyor"
                 Faz.ISLE -> "Düşünüyor…"
                 Faz.KONUS -> "Konuşuyor"
                 Faz.BOS -> "Hazır"
             }
-            Row(Modifier.fillMaxWidth()) {
-                Text(durum, color = if (Motor.faz == Faz.KOMUT) Yesil else SolukKoyu, fontSize = 13.sp)
-            }
-            Dalga(Modifier.fillMaxWidth().height(56.dp))
-            Spacer(Modifier.height(6.dp))
-            when (Motor.faz) {
-                Faz.KOMUT -> if (Motor.canli.isBlank()) {
-                    Text("Konuş, seni dinliyorum", color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 18.sp)
-                } else {
-                    Text(Motor.canli, color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 20.sp,
-                        maxLines = 4, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f)) {
+                Text(durum, color = if (Motor.faz == Faz.KOMUT) Yesil else SolukKoyu, fontSize = 11.sp)
+                when (Motor.faz) {
+                    Faz.KOMUT -> if (Motor.canli.isBlank()) {
+                        Text("Konuş, seni dinliyorum", color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 1)
+                    } else {
+                        Text(Motor.canli, color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Faz.ISLE -> Text(
+                        Motor.mesajlar.lastOrNull { it.kullanici }?.metin.orEmpty(),
+                        color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Faz.KONUS -> Text(
+                        Motor.mesajlar.lastOrNull { !it.kullanici }?.metin.orEmpty(),
+                        color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 15.sp, maxLines = 3, overflow = TextOverflow.Ellipsis
+                    )
+                    Faz.BOS -> Text(
+                        Motor.mesajlar.lastOrNull { !it.kullanici }?.metin.orEmpty(),
+                        color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
                 }
-                Faz.ISLE -> Text(
-                    Motor.mesajlar.lastOrNull { it.kullanici }?.metin.orEmpty(),
-                    color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
-                )
-                Faz.KONUS -> Text(
-                    Motor.mesajlar.lastOrNull { !it.kullanici }?.metin.orEmpty(),
-                    color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 17.sp, maxLines = 6, overflow = TextOverflow.Ellipsis
-                )
-                Faz.BOS -> Text(
-                    Motor.mesajlar.lastOrNull { !it.kullanici }?.metin.orEmpty(),
-                    color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 3, overflow = TextOverflow.Ellipsis
-                )
             }
         }
     }

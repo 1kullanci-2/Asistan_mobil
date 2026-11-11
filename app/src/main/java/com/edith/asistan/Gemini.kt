@@ -113,7 +113,7 @@ class AkisSuzgeci(private val ilet: (String) -> Unit, private val baslik: (Strin
 }
 
 object Gemini {
-    private fun sistem(ozet: String, baslikIste: Boolean, yonlendir: Boolean): String {
+    fun sistem(ozet: String, baslikIste: Boolean, yonlendir: Boolean): String {
         val an = SimpleDateFormat("d MMMM yyyy EEEE HH:mm", Locale("tr", "TR")).format(Date())
         val s = StringBuilder(
             "Adın E.D.I.T.H. Kullanıcının telefonundaki sesli asistansın; yalnızca adın bu. " +
@@ -161,10 +161,40 @@ object Gemini {
     private val izinliAnahtar = setOf("type", "properties", "required", "description", "enum", "items", "format", "nullable")
 
     /**
-     * Önce hızlı model dener (araçlarla birlikte); o "[GUCLU]" derse aynı istek güçlü modele gider. Metin geldikçe
-     * [akis] ile iletilir. Bir modelin kotası dolarsa öbürüne geçilir ve [bildir] ile not düşülür.
+     * Kullanıcının seçtiği ("servis|model") modele tek istek atar; otomatik yönlendirme ya da sıralı yedek yoktur.
+     * Limit dolarsa kısa bir hata döner, kullanıcı alt panelden başka model seçer.
      */
     suspend fun sor(
+        ayar: Ayarlar,
+        secim: String,
+        ozet: String,
+        gecmis: List<Mesaj>,
+        mesaj: String,
+        ilkMesaj: Boolean,
+        araclar: List<GeminiArac>,
+        akis: (String) -> Unit,
+        bildir: (String) -> Unit,
+        baslik: (String) -> Unit,
+        cagir: suspend (String, JSONObject) -> String
+    ): Cevap {
+        val servis = secim.substringBefore("|")
+        val model = secim.substringAfter("|", "")
+        try {
+            return if (servis == "gemini") {
+                sorGemini(model, ayar, ozet, gecmis, mesaj, ilkMesaj, araclar, akis, bildir, baslik, cagir)
+            } else {
+                UcServis.sor(servis, model, ayar, ozet, gecmis, mesaj, ilkMesaj, araclar, akis, baslik, cagir)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            UygulamaLog.kaydet(Motor.ctx, "AI/$servis", e)
+            throw e
+        }
+    }
+
+    private suspend fun sorGemini(
+        model: String,
         ayar: Ayarlar,
         ozet: String,
         gecmis: List<Mesaj>,
@@ -178,11 +208,7 @@ object Gemini {
     ): Cevap = withContext(Dispatchers.IO) {
         val apiKey = ayar.apiKey
         require(apiKey.isNotBlank()) { "Gemini API anahtarı girilmemiş (Ayarlar → Yapay zeka)." }
-        val hizli = ayar.modelHizli
-        val kaliteli = ayar.modelKaliteli
-        val yonlendirme = ayar.modelYonlendirme && hizli != kaliteli
-        var model = if (yonlendirme) hizli else kaliteli
-        val kota = mutableSetOf<String>()
+        require(model.isNotBlank()) { "Bir model seç (sohbet ekranında soldaki model kutusu)." }
         var baslikIstendi = ilkMesaj
 
         val icerik = JSONArray()
@@ -201,8 +227,7 @@ object Gemini {
         var tur = 0
         while (tur < 8) {
             tur++
-            val yonlendirici = yonlendirme && model == hizli && kaliteli !in kota
-            suzgec.yonlendirmeAcik = yonlendirici
+            val yonlendirici = false
             val govde = JSONObject()
                 .put("contents", icerik)
                 .put(
@@ -211,29 +236,10 @@ object Gemini {
                 )
             if (araclarJson != null) govde.put("tools", araclarJson)
 
-            val parcalar = try {
-                akisliIstek(apiKey, model, govde.toString(), suzgec)
-            } catch (e: KotaHatasi) {
-                kota.add(model)
-                val yedek = listOf(kaliteli, hizli).firstOrNull { it !in kota }
-                    ?: throw RuntimeException(e.message)
-                bildir(
-                    if (model == hizli) "Hızlı modelin limiti doldu, güçlü modele geçildi."
-                    else "Güçlü modelin limiti doldu, hızlı modele geçildi."
-                )
-                model = yedek
-                tur--
-                continue
-            }
+            val parcalar = akisliIstek(apiKey, model, govde.toString(), suzgec)
 
             val cagrilar = (0 until parcalar.length()).map { parcalar.getJSONObject(it) }.filter { it.has("functionCall") }
             if (cagrilar.isEmpty()) {
-                if (suzgec.guclu && yonlendirici) {      // hızlı model işi devretti
-                    suzgec.sifirla()
-                    model = kaliteli
-                    baslikIstendi = false
-                    continue
-                }
                 suzgec.bitir()
                 val temiz = suzgec.tumu.toString().trim()
                 if (temiz.isEmpty()) return@withContext Cevap("(Boş cevap geldi)", false)
@@ -254,7 +260,8 @@ object Gemini {
                     cagir(ad, fc.optJSONObject("args") ?: JSONObject())
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
-                    "Hata: ${e.message}"
+                    UygulamaLog.kaydet(Motor.ctx, "MCP araç çağrısı/$ad", e)
+                    "Araç çalıştırılamadı: ${UygulamaLog.kullaniciMesaji(e)}"
                 }
                 cevaplar.put(
                     JSONObject().put(
@@ -292,7 +299,7 @@ object Gemini {
                     )
                 )
             )
-        val yanit = istekAt(ayar.apiKey, ayar.modelHizli, govde.toString())
+        val yanit = istekAt(ayar.apiKey, ayar.servisModelleri("gemini").firstOrNull() ?: "gemini-flash-lite-latest", govde.toString())
         val p = yanit.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
         buildString {
             if (p != null) for (i in 0 until p.length()) append(p.getJSONObject(i).optString("text"))
@@ -327,9 +334,11 @@ object Gemini {
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: KotaHatasi) {
-            "kota dolu"
+            UygulamaLog.kaydet(Motor.ctx, "Gemini model testi", e)
+            "Kullanım limiti doldu"
         } catch (e: Exception) {
-            e.message?.take(90) ?: "hata"
+            UygulamaLog.kaydet(Motor.ctx, "Gemini model testi", e)
+            UygulamaLog.kullaniciMesaji(e)
         }
     }
 

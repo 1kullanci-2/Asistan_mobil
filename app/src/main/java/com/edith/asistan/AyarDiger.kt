@@ -30,80 +30,96 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SayfaYapayZeka(geri: () -> Unit) {
+    SayfaCerceve("Yapay zeka", geri) {
+        Text(
+            "Her serviste en fazla 2 model seç. Sohbet ekranında giriş kutusunun solundaki model kutusundan istediğin modele geçersin; " +
+                "yeni sohbetler Gemini'nin ilk modeliyle başlar. Otomatik yönlendirme ya da sıralı yedek yoktur.",
+            color = SolukKoyu, fontSize = 13.sp, lineHeight = 18.sp
+        )
+        Ayarlar.YAPAY_ZEKA_SERVISLER.forEach { ServisBolumu(it) }
+    }
+}
+
+@Composable
+private fun ServisBolumu(servis: String) {
     val a = Motor.ayarlar
-    var anahtar by remember { mutableStateOf(a.apiKey) }
+    val ad = Ayarlar.YAPAY_ZEKA_AD[servis] ?: servis
+    var anahtar by remember { mutableStateOf(a.servisAnahtar(servis)) }
     var goster by remember { mutableStateOf(false) }
-    var hizli by remember { mutableStateOf(a.modelHizli) }
-    var kaliteli by remember { mutableStateOf(a.modelKaliteli) }
-    var yonlendirme by remember { mutableStateOf(a.modelYonlendirme) }
+    var secili by remember { mutableStateOf(a.servisModelleri(servis)) }
     var liste by remember { mutableStateOf<List<String>>(emptyList()) }
     var yukleniyor by remember { mutableStateOf(false) }
-    var listeHata by remember { mutableStateOf<String?>(null) }
+    var durum by remember { mutableStateOf<String?>(null) }
     val sonuc = remember { mutableStateMapOf<String, String>() }
     val kapsam = rememberCoroutineScope()
-    SayfaCerceve("Yapay zeka", geri) {
-        Bolum("Gemini API anahtarı", "aistudio.google.com üzerinden ücretsiz alınır. Yalnızca bu telefonda saklanır.") {
-            Alan(anahtar, { anahtar = it; a.apiKey = it }, "API anahtarı", gizli = !goster)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Dugme(if (goster) "Gizle" else "Göster") { goster = !goster }
-                Dugme("Sil", DugmeTuru.TEHLIKE) { anahtar = ""; a.apiKey = "" }
-                if (anahtar.isBlank()) Etiket("girilmedi", "hata") else Etiket("kayıtlı", "ok")
+
+    fun sec(m: String) {
+        val yeni = if (m in secili) secili - m else (secili + m).takeLast(2)
+        secili = yeni
+        a.servisModelleri(servis, yeni)
+    }
+
+    Bolum(
+        ad,
+        if (servis == "gemini") "Google AI Studio'dan API anahtarı alabilirsin. Anahtar yalnızca bu telefonda saklanır."
+        else "OpenAI uyumlu API. Anahtar yalnızca bu telefonda saklanır."
+    ) {
+        Alan(anahtar, { anahtar = it; a.servisAnahtar(servis, it) }, "$ad API anahtarı", gizli = !goster)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Dugme(if (goster) "Gizle" else "Göster") { goster = !goster }
+            Dugme("Sil", DugmeTuru.TEHLIKE) { anahtar = ""; a.servisAnahtar(servis, "") }
+            if (anahtar.isBlank()) Etiket("girilmedi", "hata") else Etiket("kayıtlı", "ok")
+        }
+        Text("Seçili modeller", color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        if (secili.isEmpty()) Text("Henüz model seçilmedi.", color = SolukKoyu, fontSize = 12.sp)
+        secili.forEachIndexed { i, m ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(m, Modifier.weight(1f), color = MetinKoyu, fontSize = 13.sp)
+                if (i == 0) Etiket("öncelikli", "bilgi")
+                Dugme("Kaldır", DugmeTuru.IKINCIL) { sec(m) }
             }
         }
-        Bolum(
-            "Modeller",
-            "Her istek önce hızlı modele gider; o gerekli görürse kaliteli modele devreder. Bildiğim kadarıyla Gemini'nin ücretsiz " +
-                "planında Flash modelleri günde yaklaşık 20 istekle sınırlı, Flash-Lite ise ~500. Kaliteli modeli de Flash-Lite yaparsan " +
-                "yönlendirme kapanır ve her şey tek modelle yanıtlanır."
-        ) {
-            Anahtarli("Otomatik yönlendirme", "Kapalıysa her istek kaliteli modelle yanıtlanır.", yonlendirme) {
-                yonlendirme = it; a.modelYonlendirme = it
+        Dugme(if (yukleniyor) "Modeller getiriliyor…" else "Modelleri getir", DugmeTuru.BIRINCIL, Modifier.fillMaxWidth()) {
+            if (anahtar.isBlank()) { durum = "Önce API anahtarını gir."; return@Dugme }
+            if (yukleniyor) return@Dugme
+            yukleniyor = true
+            durum = null
+            kapsam.launch {
+                try {
+                    liste = if (servis == "gemini") Gemini.modeller(a.apiKey) else UcServis.modeller(servis, a)
+                    durum = "${liste.size} model bulundu."
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    UygulamaLog.kaydet(Motor.ctx, "$ad model listesi", e)
+                    durum = UygulamaLog.kullaniciMesaji(e)
+                }
+                yukleniyor = false
             }
-            Text("Hızlı model", color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Alan(hizli, { hizli = it; a.modelHizli = it }, "gemini-flash-lite-latest")
-            Text("Kaliteli model", color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Alan(kaliteli, { kaliteli = it; a.modelKaliteli = it }, "gemini-flash-latest")
         }
-        Bolum(
-            "Kullanılabilir modeller",
-            "Anahtarının görebildiği modelleri getirir. “Dene” tek bir kısa istek harcar; kotası olmayan modeli hemen görürsün. " +
-                "Yönlendirme için hızlı ve kaliteli modeli birbirinden farklı seç."
-        ) {
-            Dugme(if (yukleniyor) "Getiriliyor…" else "Modelleri getir", DugmeTuru.BIRINCIL, Modifier.fillMaxWidth()) {
-                if (!yukleniyor && a.apiKey.isNotBlank()) {
-                    yukleniyor = true
-                    listeHata = null
-                    kapsam.launch {
-                        try {
-                            liste = Gemini.modeller(a.apiKey)
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            listeHata = e.message
+        durum?.let { Text(it, color = if (it.endsWith("bulundu.")) Yesil else Hata, fontSize = 12.sp) }
+        liste.forEach { m ->
+            AltKutu {
+                Text(m, color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                val d = sonuc[m]
+                if (d == "ok") Etiket("çalışıyor ✓", "ok")
+                else if (d != null) Text(d, color = if (d == "deneniyor…") SolukKoyu else Hata, fontSize = 12.sp, lineHeight = 15.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Dugme("Dene", DugmeTuru.IKINCIL, Modifier.weight(1f)) {
+                        sonuc[m] = "deneniyor…"
+                        kapsam.launch {
+                            sonuc[m] = try {
+                                if (servis == "gemini") Gemini.modelDene(a.apiKey, m)
+                                else UcServis.modelDene(servis, a, m)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                UygulamaLog.kaydet(Motor.ctx, "$ad model testi", e)
+                                UygulamaLog.kullaniciMesaji(e)
+                            }
                         }
-                        yukleniyor = false
                     }
-                } else if (a.apiKey.isBlank()) listeHata = "Önce API anahtarını gir."
-            }
-            listeHata?.let { Text(it, color = Hata, fontSize = 12.sp) }
-            liste.forEach { m ->
-                AltKutu {
-                    Text(m, color = MetinKoyu, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (hizli == m) Etiket("hızlı", "bilgi")
-                        if (kaliteli == m) Etiket("kaliteli", "bilgi")
-                        val d = sonuc[m]
-                        if (d == "ok") Etiket("çalışıyor ✓", "ok")
-                        else if (d != null) Text(d, color = Hata, fontSize = 12.sp, lineHeight = 15.sp)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Dugme("Dene", DugmeTuru.IKINCIL, Modifier.weight(1f)) {
-                            sonuc[m] = "deneniyor…"
-                            kapsam.launch { sonuc[m] = Gemini.modelDene(a.apiKey, m) }
-                        }
-                        Dugme("Hızlı", DugmeTuru.IKINCIL, Modifier.weight(1f)) { hizli = m; a.modelHizli = m }
-                        Dugme("Kaliteli", DugmeTuru.IKINCIL, Modifier.weight(1f)) { kaliteli = m; a.modelKaliteli = m }
-                    }
+                    Dugme(if (m in secili) "Seçildi ✓" else "Seç", if (m in secili) DugmeTuru.BIRINCIL else DugmeTuru.IKINCIL, Modifier.weight(1f)) { sec(m) }
                 }
             }
         }
@@ -249,11 +265,11 @@ fun SayfaBaglanti(geri: () -> Unit) {
             Bolum(b.ad, b.url) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val d = Motor.mcpDurum[b.id]
-                    Etiket(d ?: if (b.acik) "bağlanmadı" else "kapalı", if (d?.startsWith("Bağlı") == true) "ok" else if (d?.startsWith("Hata") == true) "hata" else "gri")
+                    Etiket(d ?: if (b.acik) "bağlanmadı" else "kapalı", if (d?.startsWith("Bağlı") == true) "ok" else if (d != null && d != "Bağlanıyor…") "hata" else "gri")
                 }
                 Anahtarli("Açık", null, b.acik) { v -> kaydet(liste.map { if (it.id == b.id) it.copy(acik = v) else it }) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Dugme("Dene", DugmeTuru.IKINCIL, Modifier.weight(1f)) { kapsam.launch { Motor.mcpBaglan(b) } }
+                    Dugme("Bağlan", DugmeTuru.IKINCIL, Modifier.weight(1f)) { kapsam.launch { Motor.mcpBaglan(b) } }
                     Dugme("Araçlar", DugmeTuru.IKINCIL, Modifier.weight(1f)) { acilan = if (acilan == b.id) null else b.id }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -262,7 +278,7 @@ fun SayfaBaglanti(geri: () -> Unit) {
                 }
                 if (acilan == b.id) {
                     val araclar = Motor.mcpAraclarListesi(b)
-                    if (araclar.isEmpty()) Text("Araç listesi için önce “Dene”ye bas.", color = SolukKoyu, fontSize = 12.sp)
+                    if (araclar.isEmpty()) Text("Araç listesini görmek için önce “Bağlan”a bas.", color = SolukKoyu, fontSize = 12.sp)
                     araclar.forEach { ar ->
                         Anahtarli(ar.ad, ar.aciklama.take(90).ifBlank { null }, ar.ad !in b.kapaliAraclar) { v ->
                             kaydet(liste.map {
@@ -310,13 +326,13 @@ private fun BaglantiDiyalogu(mevcut: Baglanti?, kapat: () -> Unit, kaydet: (Bagl
                 Alan(url, { url = it }, "https://…/mcp")
                 Alan(baslik, { baslik = it }, "Başlık (ör. Authorization: Bearer …)")
                 sonuc?.let { Text(it, color = if (it.startsWith("Bağlandı")) Yesil else Hata, fontSize = 12.sp) }
-                Dugme("Bağlantıyı dene") {
+                Dugme("Bağlan") {
                     sonuc = "Deneniyor…"
                     kapsam.launch {
                         sonuc = try {
                             "Bağlandı · ${Motor.mcpDene(url.trim(), baslik.trim())} araç"
                         } catch (e: Exception) {
-                            "Hata: ${e.message?.take(100)}"
+                            UygulamaLog.kullaniciMesaji(e)
                         }
                     }
                 }
@@ -393,6 +409,66 @@ fun SayfaPanel(geri: () -> Unit) {
                 "Huawei'de ayrıca Pil → Uygulama başlatma → E.D.I.T.H. → “Elle yönet” içinde üç seçeneği de açman gerekebilir.",
                 color = SolukKoyu, fontSize = 12.sp, lineHeight = 16.sp
             )
+        }
+    }
+}
+
+
+@Composable
+fun SayfaGuncelleme(geri: () -> Unit) {
+    var bilgi by remember { mutableStateOf<GuncellemeBilgisi?>(null) }
+    var kontrolEdildi by remember { mutableStateOf(false) }
+    var yukleniyor by remember { mutableStateOf(false) }
+    var durum by remember { mutableStateOf("Henüz güncelleme kontrolü yapılmadı.") }
+    val kapsam = rememberCoroutineScope()
+
+    SayfaCerceve("Güncelleme", geri) {
+        Bolum("Uygulama sürümü", "Yüklü sürüm: ${BuildConfig.VERSION_NAME}") {
+            Dugme(
+                if (yukleniyor) "Kontrol ediliyor…" else "Güncellemeleri denetle",
+                DugmeTuru.BIRINCIL,
+                Modifier.fillMaxWidth()
+            ) {
+                if (!yukleniyor) {
+                    yukleniyor = true
+                    bilgi = null
+                    kapsam.launch {
+                        try {
+                            bilgi = Guncelleme.kontrol()
+                            kontrolEdildi = true
+                            durum = if (bilgi == null) "Uygulama güncel. Yeni bir sürüm bulunamadı."
+                            else "Yeni sürüm bulundu: ${bilgi!!.surum}"
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            UygulamaLog.kaydet(Motor.ctx, "Güncelleme kontrolü", e)
+                            durum = UygulamaLog.kullaniciMesaji(e)
+                        }
+                        yukleniyor = false
+                    }
+                }
+            }
+            Text(durum, color = if (bilgi != null) MetinKoyu else SolukKoyu, fontSize = 13.sp, lineHeight = 18.sp)
+            bilgi?.let { g ->
+                AltKutu {
+                    Text("E.D.I.T.H. ${g.surum}", color = MetinKoyu, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Dugme("APK'yı indir ve kur", DugmeTuru.BIRINCIL, Modifier.fillMaxWidth()) {
+                        try {
+                            val id = Guncelleme.indir(Motor.ctx, g.apkUrl)
+                            durum = "İndirme başladı. Tamamlandığında bildirime dokunarak kurulumu başlat; gerekirse yükleme iznini aç."
+                        } catch (e: Exception) {
+                            UygulamaLog.kaydet(Motor.ctx, "APK indirme", e)
+                            durum = UygulamaLog.kullaniciMesaji(e)
+                        }
+                    }
+                }
+            }
+            if (kontrolEdildi && bilgi == null) {
+                Text("Yeni sürüm yayınlandığında burada görünecek.", color = SolukKoyu, fontSize = 12.sp)
+            }
+        }
+        Bolum("Kurulum hakkında", "APK indirildikten sonra Android uygulama yükleme izni isteyebilir. İzin ekranından E.D.I.T.H. için bu izni açıp kuruluma devam et.") {
+            Text("Güncelleme, GitHub deposundaki son yayınlanan APK'yı kullanır.", color = SolukKoyu, fontSize = 12.sp)
         }
     }
 }

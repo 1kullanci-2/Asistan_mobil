@@ -12,7 +12,8 @@ class SohbetKaydi(
     var guncelleme: Long,
     var ozet: String = "",
     var ozetKapsam: Int = 0,
-    val mesajlar: MutableList<Mesaj> = mutableListOf()
+    val mesajlar: MutableList<Mesaj> = mutableListOf(),
+    var model: String = ""      // "servis|model"; boşsa varsayılan seçim
 )
 
 data class SohbetBaslik(val id: String, val baslik: String, val guncelleme: Long)
@@ -29,7 +30,7 @@ object Depo {
             )
         }
         return JSONObject().put("id", k.id).put("baslik", k.baslik).put("guncelleme", k.guncelleme)
-            .put("ozet", k.ozet).put("kapsam", k.ozetKapsam).put("mesajlar", m).toString()
+            .put("model", k.model).put("ozet", k.ozet).put("kapsam", k.ozetKapsam).put("mesajlar", m).toString()
     }
 
     @Synchronized
@@ -57,7 +58,7 @@ object Depo {
                 }.toMutableList()
                 SohbetKaydi(
                     o.getString("id"), o.optString("baslik", "Sohbet"), o.optLong("guncelleme"),
-                    o.optString("ozet"), o.optInt("kapsam"), liste
+                    o.optString("ozet"), o.optInt("kapsam"), liste, o.optString("model")
                 )
             }.getOrNull()
         }

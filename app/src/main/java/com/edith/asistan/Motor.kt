@@ -75,6 +75,8 @@ object Motor : DinleyiciGeri {
     var ayarAcik by mutableStateOf(false)
     var indirme by mutableStateOf<String?>(null)
     var panelGorunur by mutableStateOf(false)
+    var secim by mutableStateOf("gemini|")          // etkin sohbetin "servis|model" seçimi
+    var modelPaneli by mutableStateOf(false)
     var kapatSorusu by mutableStateOf(false)      // panelde "Kapatılsın mı?" sorusu
     private var sorudaDinliyordu = false
     var kurulumGoster by mutableStateOf(false)    // ilk kurulum ekranı
@@ -132,6 +134,7 @@ object Motor : DinleyiciGeri {
         basladi = true
         ctx = c.applicationContext
         ayarlar = Ayarlar(ctx)
+        secim = ayarlar.varsayilanSecim()
         izinYenile()
         // İlk kurulum yalnızca ilk yüklemede gösterilir; modelleri zaten olan eski kurulumlar atlar.
         if (modellerHazir) ayarlar.kurulumTamam = true
@@ -402,6 +405,7 @@ object Motor : DinleyiciGeri {
         Ses.kes()
         aktif = null
         aktifId = null
+        secim = ayarlar.varsayilanSecim()   // her yeni sohbet Gemini'nin en hızlı modeliyle başlar
         mesajlar.clear()
         akanMetin = ""
         adim = ""
@@ -410,11 +414,26 @@ object Motor : DinleyiciGeri {
         fazSenkron()
     }
 
+    /** Alt panelden seçim: etkin sohbet (varsa) kaydedilir, yoksa sonraki mesajla başlayacak sohbete uygulanır. */
+    fun modelSec(s: String) {
+        secim = s
+        modelPaneli = false
+        aktif?.let { it.model = s; kaydetKayit(it) }
+    }
+
+    /** Seçili servis/model artık yoksa (anahtar silindi, model kaldırıldı) varsayılana döner. */
+    fun gecerliSecim(s: String): String {
+        val (servis, model) = s.split("|", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+        val ok = ayarlar.servisAnahtar(servis).isNotBlank() && model.isNotBlank()
+        return if (ok) s else ayarlar.varsayilanSecim()
+    }
+
     fun sohbetAc(id: String) {
         val k = kayitlar[id] ?: return
         Ses.kes()
         aktif = k
         aktifId = id
+        secim = gecerliSecim(k.model.ifBlank { ayarlar.varsayilanSecim() })
         mesajlar.clear()
         mesajlar.addAll(k.mesajlar)
         akanMetin = kismi[id].orEmpty()
@@ -452,6 +471,7 @@ object Motor : DinleyiciGeri {
 
     /** Konuşma uzadıkça eski kısmı arka planda özetler; sohbetler arasında gezmek istek harcamaz. */
     private fun ozetGuncelle(k: SohbetKaydi) {
+        if (ayarlar.apiKey.isBlank()) return   // özet Gemini ile çıkarılır; anahtar yoksa mekanik kısaltma kullanılır
         val tum = k.mesajlar.filter { !it.not }
         val hedef = tum.size - 6
         if (hedef - k.ozetKapsam < 6) return
@@ -508,6 +528,7 @@ object Motor : DinleyiciGeri {
             aktifId = k.id
             kayitlar[k.id] = k
         }
+        if (k.model.isBlank()) k.model = secim.ifBlank { ayarlar.varsayilanSecim() }
         val kayit: SohbetKaydi = k
         val ilk = kayit.mesajlar.none { !it.kullanici && !it.not }
         ekle(kayit, Mesaj(true, m))
@@ -622,7 +643,7 @@ object Motor : DinleyiciGeri {
                                         } catch (e: CancellationException) {
                                             throw e
                                         } catch (e: Exception) {
-                                            if (hata == null) hata = "Ses üretilemedi: ${e.message}"
+                                            if (hata == null) { UygulamaLog.kaydet(ctx, "Ses sentezi", e); hata = "Ses üretilemedi: ${UygulamaLog.kullaniciMesaji(e)}" }
                                             sesHatasi = true
                                             null
                                         }
@@ -645,7 +666,7 @@ object Motor : DinleyiciGeri {
                         mcpBekle()
                         val (araclar, esle) = mcpAraclari()
                         val cevap = Gemini.sor(
-                            ayarlar, ozet, yakin, m, ilk, araclar,
+                            ayarlar, gecerliSecim(kayit.model.ifBlank { secim }), ozet, yakin, m, ilk, araclar,
                             akis = { d ->
                                 val t = (kismi[kayit.id] ?: "") + d
                                 kismi[kayit.id] = t
@@ -698,8 +719,9 @@ object Motor : DinleyiciGeri {
                     if (yarim.isEmpty() && !Ag.bagliMi(ctx)) {
                         cevrimDisiKaldi = true   // bağlantı koptu: mesaj kuyruğa alınır, hata gösterilmez
                     } else {
-                        val h = e.message ?: "Bilinmeyen hata"
-                        if (aktif === kayit) hata = h else ekle(kayit, Mesaj(false, "Cevap alınamadı: $h", not = true))
+                        UygulamaLog.kaydet(ctx, "Asistan isteği", e)
+                        val h = UygulamaLog.kullaniciMesaji(e)
+                        if (aktif === kayit) hata = h else ekle(kayit, Mesaj(false, h, not = true))
                         if (yarim.isNotEmpty()) ekle(kayit, Mesaj(false, yarim, kullanilan.toList()))
                     }
                 }
@@ -737,7 +759,8 @@ object Motor : DinleyiciGeri {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                hata = "${Ayarlar.MOTOR_AD[motor]}: ${e.message}"
+                UygulamaLog.kaydet(ctx, "Ses motoru/$motor", e)
+                hata = "${Ayarlar.MOTOR_AD[motor]}: ${UygulamaLog.kullaniciMesaji(e)}"
             }
         }
     }
@@ -759,7 +782,8 @@ object Motor : DinleyiciGeri {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                hata = "Önizleme: ${e.message}"
+                UygulamaLog.kaydet(ctx, "Ses önizleme", e)
+                hata = "Önizleme: ${UygulamaLog.kullaniciMesaji(e)}"
             } finally {
                 if (onizleme == ses) onizleme = null
             }
@@ -786,7 +810,8 @@ object Motor : DinleyiciGeri {
             p.prepareAsync()
         } catch (e: Exception) {
             onizleme = null
-            hata = "Önizleme: ${e.message}"
+            UygulamaLog.kaydet(ctx, "ElevenLabs önizleme", e)
+            hata = "Önizleme: ${UygulamaLog.kullaniciMesaji(e)}"
         }
     }
 
@@ -914,15 +939,17 @@ object Motor : DinleyiciGeri {
             mcpDurum[b.id] = "Bağlı · $n araç"
         } catch (e: Exception) {
             mcp.remove(b.id)
-            val m = e.message.orEmpty()
-            val ipucu = if (m.contains("SSL", true) || m.contains("reset", true))
-                " — Telefonun ağı bu adresin güvenli bağlantısını kesiyor olabilir (operatör/ağ engeli). Tarayıcıdan açmayı ve Wi‑Fi yerine mobil veriyi dene."
-            else ""
-            mcpDurum[b.id] = "Hata: ${m.take(100)}$ipucu"
+            UygulamaLog.kaydet(ctx, "MCP/${b.ad}", e)
+            mcpDurum[b.id] = UygulamaLog.kullaniciMesaji(e)
         }
     }
 
-    suspend fun mcpDene(url: String, baslik: String): Int = McpIstemci(url, baslik).baglan()
+    suspend fun mcpDene(url: String, baslik: String): Int = try {
+        McpIstemci(url, baslik).baglan()
+    } catch (e: Exception) {
+        UygulamaLog.kaydet(ctx, "MCP bağlantı testi", e)
+        throw IllegalStateException(UygulamaLog.kullaniciMesaji(e), e)
+    }
 
     fun mcpSil(b: Baglanti) {
         mcp.remove(b.id)
@@ -1043,7 +1070,8 @@ object Motor : DinleyiciGeri {
             true
         } catch (e: Exception) {
             indirme = null
-            hata = "Ses modeli hazırlanamadı: ${e.message}"
+            UygulamaLog.kaydet(ctx, "Ses modeli", e)
+            hata = "Ses modeli hazırlanamadı: ${UygulamaLog.kullaniciMesaji(e)}"
             false
         }
     }

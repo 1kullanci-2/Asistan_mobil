@@ -28,15 +28,35 @@ class Ayarlar(ctx: Context) {
     var apiKey: String
         get() = oku("api_key")
         set(v) = yaz("api_key", v)
-    var modelHizli: String
-        get() = oku("model_hizli", "gemini-flash-lite-latest").ifBlank { "gemini-flash-lite-latest" }
-        set(v) = yaz("model_hizli", v)
-    var modelKaliteli: String
-        get() = oku("model_kaliteli", "gemini-flash-latest").ifBlank { "gemini-flash-latest" }
-        set(v) = yaz("model_kaliteli", v)
-    var modelYonlendirme: Boolean
-        get() = bool("model_yonlendirme", true)
-        set(v) = bool("model_yonlendirme", true, v)
+    // ── Yapay zekâ servisleri: her serviste kullanıcının seçtiği (en fazla 2) model; sohbetten sohbete seçilir
+    fun servisAnahtar(servis: String): String =
+        if (servis == "gemini") apiKey else oku("api_$servis")
+
+    fun servisAnahtar(servis: String, deger: String) {
+        if (servis == "gemini") apiKey = deger else yaz("api_$servis", deger)
+    }
+
+    /** Servisin seçili modelleri; ilki "en hızlı"/öncelikli sayılır. */
+    fun servisModelleri(servis: String): List<String> {
+        val varsayilan = when (servis) {
+            "gemini" -> "gemini-flash-lite-latest,gemini-flash-latest"
+            "groq" -> "openai/gpt-oss-120b"
+            "cerebras" -> "zai-glm-4.7"
+            "mistral" -> "mistral-small-latest"
+            else -> ""
+        }
+        return oku("modeller_$servis", varsayilan).split(",").map { it.trim() }.filter { it.isNotEmpty() }.take(2)
+    }
+
+    fun servisModelleri(servis: String, liste: List<String>) =
+        yaz("modeller_$servis", liste.filter { it.isNotBlank() }.distinct().take(2).joinToString(","))
+
+    /** Yeni sohbetlerin başlangıç seçimi: Gemini'nin en hızlısı (anahtar yoksa anahtarı olan ilk servis). */
+    fun varsayilanSecim(): String {
+        val servis = YAPAY_ZEKA_SERVISLER.firstOrNull { servisAnahtar(it).isNotBlank() } ?: "gemini"
+        val model = servisModelleri(servis).firstOrNull() ?: ""
+        return "$servis|$model"
+    }
 
     // ── Ses
     var siraylaDene: Boolean
@@ -173,6 +193,13 @@ class Ayarlar(ctx: Context) {
         }
 
     companion object {
+        val YAPAY_ZEKA_SERVISLER = listOf("gemini", "groq", "cerebras", "mistral")
+        val YAPAY_ZEKA_AD = mapOf(
+            "gemini" to "Google Gemini",
+            "groq" to "Groq",
+            "cerebras" to "Cerebras",
+            "mistral" to "Mistral"
+        )
         val MOTORLAR = listOf("gemini", "elevenlabs")
         val MOTOR_AD = mapOf("gemini" to "Gemini TTS", "elevenlabs" to "ElevenLabs")
     }
