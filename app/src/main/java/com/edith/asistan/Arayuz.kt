@@ -36,7 +36,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -360,7 +362,7 @@ fun GirisCubugu(onMik: () -> Unit) {
     var metin by remember { mutableStateOf("") }
     val dinliyor = Motor.faz == Faz.KOMUT
     val yaziVar = metin.isNotBlank()
-    val klavyeAcik = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    val klavyeAcik = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     // Boştayken tek satırlık ince kutu; klavye açılınca ya da yazı varken iki satır: üstte yazı, altta düğmeler
     val genis = klavyeAcik || yaziVar
     // Yazmaya başlayınca sesle dinleme bırakılır
