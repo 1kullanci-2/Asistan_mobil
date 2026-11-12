@@ -47,6 +47,11 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                 drawLine(renk, Offset(12f * u, 17f * u), Offset(12f * u, 21f * u), 1.9f * u, StrokeCap.Round)
                 drawLine(renk, Offset(8.5f * u, 21f * u), Offset(15.5f * u, 21f * u), 1.9f * u, StrokeCap.Round)
             }
+            "klavye" -> {
+                drawRoundRect(renk, Offset(2.5f * u, 6f * u), Size(19f * u, 12f * u), CornerRadius(2.5f * u), style = kalem)
+                for (x in listOf(6.5f, 10.2f, 13.8f, 17.5f)) drawCircle(renk, 0.9f * u, Offset(x * u, 10f * u))
+                drawLine(renk, Offset(7f * u, 14.5f * u), Offset(17f * u, 14.5f * u), 1.6f * u, StrokeCap.Round)
+            }
             "baglanti" -> { // birbirine geçen iki halka
                 drawRoundRect(renk, Offset(2.5f * u, 8.5f * u), Size(11f * u, 7f * u), CornerRadius(3.5f * u), style = kalem)
                 drawRoundRect(renk, Offset(10.5f * u, 8.5f * u), Size(11f * u, 7f * u), CornerRadius(3.5f * u), style = kalem)

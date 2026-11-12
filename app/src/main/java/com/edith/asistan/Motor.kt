@@ -75,6 +75,7 @@ object Motor : DinleyiciGeri {
     var ayarAcik by mutableStateOf(false)
     var indirme by mutableStateOf<String?>(null)
     var panelGorunur by mutableStateOf(false)
+    var panelYazi by mutableStateOf(false)          // panelde dinleme yerine yazı kutusu
     var secim by mutableStateOf("gemini|")          // etkin sohbetin "servis|model" seçimi
     var modelPaneli by mutableStateOf(false)
     var kapatSorusu by mutableStateOf(false)      // panelde "Kapatılsın mı?" sorusu
@@ -287,6 +288,7 @@ object Motor : DinleyiciGeri {
 
     /** Panel kapanınca konuşma susar ama düşünen/yazılan cevap iptal edilmez; bitince bildirim gelir. */
     fun panelKapat() {
+        panelYazi = false
         kapatSorusu = false
         aktifId?.let { sessiz.add(it) }
         Ses.kes()

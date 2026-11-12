@@ -30,6 +30,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -178,6 +184,18 @@ object OverlayHost {
         }
     }
 
+    /** Yazı modunda klavye açılabilsin diye pencere odaklanabilir yapılır; dinlerken tekrar odaksız olur. */
+    fun yaziModu(c: Context, yazi: Boolean) {
+        val g: View = gorunum ?: return
+        runCatching {
+            val lp = g.layoutParams as WindowManager.LayoutParams
+            lp.flags = if (yazi) WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            lp.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            c.getSystemService(WindowManager::class.java).updateViewLayout(g, lp)
+        }
+    }
+
     fun gizle(c: Context) {
         val g: View = gorunum ?: return
         runCatching { c.getSystemService(WindowManager::class.java).removeView(g) }
@@ -196,32 +214,54 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
     else Modifier.fillMaxWidth()
     Column(dis, verticalArrangement = Arrangement.Bottom) {
         val sekil = RoundedCornerShape(32.dp)
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val yazi = Motor.panelYazi
+        var metin by remember { mutableStateOf("") }
+        val odak = remember { androidx.compose.ui.focus.FocusRequester() }
+        val klavye = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        LaunchedEffect(yazi) {
+            if (!tamEkran) OverlayHost.yaziModu(ctx, yazi)
+            if (yazi) {
+                kotlinx.coroutines.delay(150)
+                runCatching { odak.requestFocus(); klavye?.show() }
+            }
+        }
         if (tamEkran && Motor.kapatSorusu) KapatSorusu(kapat)
-        // İnce kapsül: solda küçük dalga, sağda durum ve canlı yazı tek blokta
+        // İnce kapsül: solda yuvarlak klavye/mikrofon düğmesi; ortada dalga (ya da yazı kutusu)
         Row(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp)
                 .clip(sekil).background(Krem.copy(alpha = 0.94f))
                 .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), KremKoyu)), sekil)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-                .padding(horizontal = 18.dp, vertical = 10.dp),
+                .padding(start = 10.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Dalga(Modifier.width(54.dp).height(34.dp))
-            val durum = when (Motor.faz) {
-                Faz.KOMUT -> "Dinleniyor"
-                Faz.ISLE -> "Düşünüyor…"
-                Faz.KONUS -> "Konuşuyor"
-                Faz.BOS -> "Hazır"
-            }
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(KremKoyu)
+                    .clickable {
+                        if (yazi) { Motor.panelYazi = false; Motor.sesliKomut() }
+                        else { Motor.dinlemeyiIptal(); Motor.panelYazi = true }
+                    },
+                contentAlignment = Alignment.Center
+            ) { Simge(if (yazi) "mik" else "klavye", MetinKoyu, Modifier.size(22.dp)) }
+
             Column(Modifier.weight(1f)) {
+                val durum = when (Motor.faz) {
+                    Faz.KOMUT -> "Dinleniyor"
+                    Faz.ISLE -> "Düşünüyor…"
+                    Faz.KONUS -> "Konuşuyor"
+                    Faz.BOS -> if (yazi) "Yaz" else "Hazır"
+                }
+                val yaziRengi = if (Motor.faz == Faz.KOMUT) MetinKoyu else SolukKoyu
+                if (!yazi) {
+                    Dalga(Modifier.fillMaxWidth().height(30.dp))   // şeridin tüm genişliğini kaplar
+                }
                 Text(durum, color = if (Motor.faz == Faz.KOMUT) Yesil else SolukKoyu, fontSize = 11.sp)
                 when (Motor.faz) {
-                    Faz.KOMUT -> if (Motor.canli.isBlank()) {
-                        Text("Konuş, seni dinliyorum", color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 1)
-                    } else {
-                        Text(Motor.canli, color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Faz.KOMUT -> if (!yazi) {
+                        if (Motor.canli.isBlank()) Text("Konuş, seni dinliyorum", color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 1)
+                        else Text(Motor.canli, color = yaziRengi, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Faz.ISLE -> Text(
                         Motor.mesajlar.lastOrNull { it.kullanici }?.metin.orEmpty(),
@@ -236,6 +276,33 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
                         color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (yazi) {
+                    androidx.compose.material3.TextField(
+                        value = metin,
+                        onValueChange = { metin = it },
+                        modifier = Modifier.fillMaxWidth().focusRequester(odak),
+                        placeholder = { Text("Mesaj yaz…", color = MetinKoyu.copy(alpha = 0.6f)) },
+                        maxLines = 3,
+                        colors = androidx.compose.material3.TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            cursorColor = Vurgu,
+                            focusedTextColor = MetinKoyu,
+                            unfocusedTextColor = MetinKoyu
+                        )
+                    )
+                }
+            }
+            if (yazi) {
+                Box(
+                    Modifier.size(42.dp).clip(CircleShape).background(if (metin.isBlank()) Vurgu.copy(alpha = 0.45f) else Vurgu)
+                        .clickable {
+                            if (metin.isNotBlank()) { Motor.gonder(metin, sesli = false); metin = "" }
+                        },
+                    contentAlignment = Alignment.Center
+                ) { Simge("gonder", KremAcik, Modifier.size(22.dp)) }
             }
         }
     }

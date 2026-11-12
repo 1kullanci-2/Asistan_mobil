@@ -3,6 +3,7 @@ package com.edith.asistan
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -359,22 +360,29 @@ fun GirisCubugu(onMik: () -> Unit) {
     var metin by remember { mutableStateOf("") }
     val dinliyor = Motor.faz == Faz.KOMUT
     val yaziVar = metin.isNotBlank()
+    val klavyeAcik = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    // Boştayken tek satırlık ince kutu; klavye açılınca ya da yazı varken iki satır: üstte yazı, altta düğmeler
+    val genis = klavyeAcik || yaziVar
     // Yazmaya başlayınca sesle dinleme bırakılır
     LaunchedEffect(yaziVar) { if (yaziVar && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() }
-    Row(
+    val sekil = RoundedCornerShape(if (genis) 30.dp else 34.dp)
+    Box(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
-            .cam(RoundedCornerShape(30.dp))
-            .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.Bottom
+            .cam(sekil)
+            .animateContentSize(tween(180))
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
-        ModelKutusu(Modifier.padding(bottom = 11.dp))
+        // Aynı yazı alanı iki durumda da yerinde kalır (odak kaybolmasın diye); yalnızca boşlukları değişir
         TextField(
             value = metin,
             onValueChange = { metin = it },
             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 17.sp),
-            modifier = Modifier.weight(1f).heightIn(min = 58.dp).onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() },
-            placeholder = { Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = MetinKoyu.copy(alpha = 0.6f)) },
-            maxLines = 4,
+            modifier = Modifier.fillMaxWidth()
+                .padding(start = if (genis) 0.dp else 92.dp, end = if (genis) 0.dp else 54.dp, bottom = if (genis) 54.dp else 0.dp)
+                .heightIn(min = if (genis) 64.dp else 52.dp)
+                .onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() },
+            placeholder = { Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = MetinKoyu.copy(alpha = 0.6f), fontSize = 17.sp) },
+            maxLines = if (genis) 6 else 1,
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
@@ -385,7 +393,11 @@ fun GirisCubugu(onMik: () -> Unit) {
                 unfocusedTextColor = MetinKoyu
             )
         )
-        Box(Modifier.padding(bottom = 3.dp), contentAlignment = Alignment.Center) {
+        ModelKutusu(Modifier.align(if (genis) Alignment.BottomStart else Alignment.CenterStart).padding(start = 4.dp, bottom = if (genis) 8.dp else 0.dp))
+        Box(
+            Modifier.align(if (genis) Alignment.BottomEnd else Alignment.CenterEnd),
+            contentAlignment = Alignment.Center
+        ) {
             if (dinliyor) { // ses seviyesiyle nefes alan düz halka
                 Box(
                     Modifier.size(46.dp)

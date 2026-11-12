@@ -54,6 +54,7 @@ class EdithOturum(baglam: Context) : VoiceInteractionSession(baglam) {
     @Suppress("DEPRECATION")
     private fun kilitUstu() {
         runCatching {
+            window?.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
             window?.window?.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                     android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
