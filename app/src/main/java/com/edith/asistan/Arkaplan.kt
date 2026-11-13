@@ -98,7 +98,7 @@ class GorevServisi : Service() {
         val b = Notification.Builder(this, KANAL)
             .setContentTitle("E.D.I.T.H.")
             .setContentText("Cevap hazırlanıyor…")
-            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setSmallIcon(R.drawable.ic_bildirim)
             .setOngoing(true)
             .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -133,7 +133,7 @@ object Bildirimler {
                 .setContentTitle(baslik.ifBlank { "E.D.I.T.H." })
                 .setContentText(onizleme)
                 .setStyle(Notification.BigTextStyle().bigText(onizleme))
-                .setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setSmallIcon(R.drawable.ic_bildirim)
                 .setContentIntent(ac)
                 .setAutoCancel(true)
                 .build()

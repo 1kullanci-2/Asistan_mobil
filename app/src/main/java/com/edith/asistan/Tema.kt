@@ -7,6 +7,9 @@ import androidx.compose.ui.graphics.Color
 
 // Palet: gül kurusu (orta ton, tek tema). İsimler eski paletten kaldı; ana zemin artık toz gül/mor-pembe tonu.
 val Visne = Color(0xFFA76C80)        // ana zemin
+val Yuzey = Color(0xFFB58394)         // kart / düğme yüzeyi (düz, saydam değil)
+val YuzeyAcik = Color(0xFFC194A3)
+val YuzeyKenar = Color(0xFFC79CAB)
 val VisneKoyu = Color(0xFF86506A)    // derin alanlar (yan panel vb.)
 val VisneAcik = Color(0xFFBC8396)    // zemin üstünde ikincil yüzey
 val Krem = Color(0xFFF7ECF0)         // kartlar

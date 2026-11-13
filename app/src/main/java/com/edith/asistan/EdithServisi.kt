@@ -37,7 +37,7 @@ class EdithServisi : Service() {
         val bildirim = Notification.Builder(this, KANAL)
             .setContentTitle("E.D.I.T.H.")
             .setContentText("Dinliyor — \"hey edit\" de")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(R.drawable.ic_bildirim)
             .setContentIntent(ac)
             .setOngoing(true)
             .addAction(Notification.Action.Builder(null, "Mikrofonu kapat", kapat).build())

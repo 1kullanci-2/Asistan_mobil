@@ -82,7 +82,7 @@ fun KurulumEkrani(onIzin: (Array<String>) -> Unit) {
         Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(
                 Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.16f))
+                    .background(Yuzey)
             ) {
                 Box(Modifier.fillMaxWidth(if (hazir) 1f else oran).fillMaxHeight().clip(RoundedCornerShape(50)).background(Krem))
             }
@@ -143,7 +143,7 @@ private fun KurulumDugme(yazi: String, birincil: Boolean, etkin: Boolean = true,
     val sekil = RoundedCornerShape(50)
     Box(
         Modifier.fillMaxWidth().height(50.dp).alpha(if (etkin) 1f else 0.5f).clip(sekil)
-            .background(if (birincil) Krem else Color.White.copy(alpha = 0.16f))
+            .background(if (birincil) Krem else Yuzey)
             .clickable(enabled = etkin, onClick = tikla),
         contentAlignment = Alignment.Center
     ) {

@@ -492,7 +492,7 @@ object Motor : DinleyiciGeri {
 
     private fun gorevBasla() {
         if (gorevSayisi++ == 0) {
-            runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, GorevServisi::class.java)) }
+            // Ek bildirim göstermemek için ön plan servisi başlatılmaz; yalnızca cevap gelince bildirim çıkar
         }
     }
 

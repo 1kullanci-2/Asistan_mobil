@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
@@ -119,6 +120,7 @@ object Panel {
     fun goster() {
         if (Motor.panelGorunur) return
         Motor.panelGorunur = true
+        Motor.panelYazi = false
         val servis = EdithAsistanServisi.instance
         if (servis != null && Motor.asistanMi()) {
             try {
@@ -161,6 +163,7 @@ object OverlayHost {
     fun goster(c: Context): Boolean {
         if (!Settings.canDrawOverlays(c)) return false
         if (gorunum != null) return true
+        Motor.panelYazi = false
         return try {
             val wm = c.getSystemService(WindowManager::class.java)
             val s = GorunumSahibi()
@@ -229,9 +232,9 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
         if (tamEkran && Motor.kapatSorusu) KapatSorusu(kapat)
         // İnce kapsül: solda yuvarlak klavye/mikrofon düğmesi; ortada dalga (ya da yazı kutusu)
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp)
-                .clip(sekil).background(Krem.copy(alpha = 0.94f))
-                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), KremKoyu)), sekil)
+            Modifier.fillMaxWidth().then(if (tamEkran) Modifier.imePadding() else Modifier).navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp)
+                .clip(sekil).background(Krem)
+                .border(1.dp, KremKoyu, sekil)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .padding(start = 10.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -313,8 +316,8 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
 fun KapatSorusu(evet: () -> Unit) {
     val sekil = RoundedCornerShape(26.dp)
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(sekil).background(Visne.copy(alpha = 0.94f))
-            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.18f))), sekil)
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(sekil).background(Visne)
+            .border(1.dp, YuzeyKenar, sekil)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -332,8 +335,8 @@ private fun PanelDugme(yazi: String, mod: Modifier, vurgulu: Boolean, tikla: () 
     val sekil = RoundedCornerShape(50)
     Box(
         mod.height(44.dp).clip(sekil)
-            .background(if (vurgulu) Krem else Color.White.copy(alpha = 0.16f))
-            .border(1.dp, Color.White.copy(alpha = if (vurgulu) 0.9f else 0.32f), sekil)
+            .background(if (vurgulu) Krem else Yuzey)
+            .border(1.dp, if (vurgulu) KremKoyu else YuzeyKenar, sekil)
             .clickable(onClick = tikla),
         contentAlignment = Alignment.Center
     ) { Text(yazi, color = if (vurgulu) MetinKoyu else MetinKrem, fontSize = 15.sp, fontWeight = FontWeight.Medium) }

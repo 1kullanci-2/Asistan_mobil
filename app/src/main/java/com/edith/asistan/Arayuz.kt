@@ -87,11 +87,11 @@ fun Modifier.kart(sekil: Shape = RoundedCornerShape(22.dp), renk: Color = Krem):
     .background(renk)
     .border(1.dp, KremKoyu, sekil)
 
-/** Sıvı cam: üstten alta açılan beyaz film + parlak üst kenar; bulanıklık yok (Android 10'da gerçek blur yok). */
+/** Düz kart yüzeyi: dolgu + ince kenar. */
 fun Modifier.cam(sekil: Shape = RoundedCornerShape(22.dp), guc: Float = 1f): Modifier = this
     .clip(sekil)
-    .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f * guc), Color.White.copy(alpha = 0.14f * guc))))
-    .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.8f), Color.White.copy(alpha = 0.16f))), sekil)
+    .background(Yuzey)
+    .border(1.dp, YuzeyKenar, sekil)
 
 private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "Günaydın"
@@ -102,22 +102,8 @@ private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR
 
 @Composable
 fun Uygulama(onMik: () -> Unit, onIzin: (Array<String>) -> Unit = {}) {
-    // Cam yüzeylerin cam gibi görünmesi için arkada yumuşak ışık lekeleri olur (aynı gül kurusu tonları).
     Box(
-        Modifier.fillMaxSize().background(Visne).drawBehind {
-            drawRect(
-                Brush.radialGradient(
-                    listOf(VisneAcik.copy(alpha = 0.75f), Color.Transparent),
-                    center = Offset(size.width * 0.15f, size.height * 0.08f), radius = size.width * 1.1f
-                )
-            )
-            drawRect(
-                Brush.radialGradient(
-                    listOf(VisneKoyu.copy(alpha = 0.7f), Color.Transparent),
-                    center = Offset(size.width * 0.95f, size.height * 0.95f), radius = size.width * 1.2f
-                )
-            )
-        }
+        Modifier.fillMaxSize().background(Visne)
     ) {
         if (Motor.kurulumGoster) {
             Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { KurulumEkrani(onIzin) }
@@ -163,8 +149,8 @@ fun UstCubuk(menu: () -> Unit) {
 @Composable
 fun CamDugme(simge: String, tikla: () -> Unit) {
     Box(
-        Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f))
-            .border(1.dp, Color.White.copy(alpha = 0.32f), CircleShape).clickable(onClick = tikla),
+        Modifier.size(46.dp).clip(CircleShape).background(Yuzey)
+            .border(1.dp, YuzeyKenar, CircleShape).clickable(onClick = tikla),
         contentAlignment = Alignment.Center
     ) { Simge(simge, MetinKrem, Modifier.size(22.dp)) }
 }
@@ -187,7 +173,7 @@ fun YanPanel() {
         val sekil = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
         Column(
             Modifier.fillMaxHeight().width(304.dp).clip(sekil).background(VisneKoyu)
-                .border(1.dp, Color.White.copy(alpha = 0.22f), sekil)
+                .border(1.dp, YuzeyKenar, sekil)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                 .statusBarsPadding().navigationBarsPadding().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -196,7 +182,7 @@ fun YanPanel() {
                 CamDugme("ayar") { Motor.menuAcik = false; Motor.ayarAcik = true }
             }
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.14f))
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Yuzey)
                     .clickable { Motor.yeniSohbet() }.padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -213,7 +199,7 @@ fun YanPanel() {
                     val secili = sb.id == Motor.aktifId
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                            .background(if (secili) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                            .background(if (secili) YuzeyAcik else Color.Transparent)
                             .clickable { Motor.sohbetAc(sb.id) }.padding(start = 14.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -338,7 +324,7 @@ fun AracSatiri(araclar: List<String>) {
     val sekil = RoundedCornerShape(50)
     Column {
         Row(
-            Modifier.clip(sekil).background(Color.White.copy(alpha = 0.16f)).border(1.dp, Color.White.copy(alpha = 0.3f), sekil)
+            Modifier.clip(sekil).background(Yuzey).border(1.dp, YuzeyKenar, sekil)
                 .clickable { acik = !acik }.padding(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -441,8 +427,8 @@ fun ModelKutusu(mod: Modifier = Modifier) {
     val sekil = RoundedCornerShape(14.dp)
     Text(
         kisaModel(Motor.secim),
-        mod.widthIn(max = 92.dp).clip(sekil).background(Color.White.copy(alpha = 0.22f))
-            .border(1.dp, Color.White.copy(alpha = 0.5f), sekil)
+        mod.widthIn(max = 92.dp).clip(sekil).background(YuzeyAcik)
+            .border(1.dp, YuzeyKenar, sekil)
             .clickable { Motor.modelPaneli = true }
             .padding(horizontal = 9.dp, vertical = 6.dp),
         color = MetinKoyu, fontSize = 11.sp, maxLines = 1,
@@ -467,8 +453,8 @@ fun ModelPaneli() {
         ) {
             val sekil = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
             Column(
-                Modifier.fillMaxWidth().clip(sekil).background(Krem.copy(alpha = 0.97f))
-                    .border(1.dp, Color.White.copy(alpha = 0.7f), sekil)
+                Modifier.fillMaxWidth().clip(sekil).background(Krem)
+                    .border(1.dp, KremKoyu, sekil)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                     .navigationBarsPadding().padding(horizontal = 18.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -488,7 +474,7 @@ fun ModelPaneli() {
                         val s2 = RoundedCornerShape(16.dp)
                         Row(
                             Modifier.fillMaxWidth().clip(s2)
-                                .background(if (secili) Vurgu.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.4f))
+                                .background(if (secili) Vurgu.copy(alpha = 0.16f) else Color.White)
                                 .border(1.dp, if (secili) Vurgu else KremKoyu, s2)
                                 .clickable { Motor.modelSec(deger) }
                                 .padding(horizontal = 14.dp, vertical = 13.dp),

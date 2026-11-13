@@ -55,6 +55,7 @@ class EdithOturum(baglam: Context) : VoiceInteractionSession(baglam) {
     private fun kilitUstu() {
         runCatching {
             window?.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            window?.window?.let { androidx.core.view.WindowCompat.setDecorFitsSystemWindows(it, false) }   // klavye boşluğunu panel kendisi yönetir
             window?.window?.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                     android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
@@ -73,6 +74,7 @@ class EdithOturum(baglam: Context) : VoiceInteractionSession(baglam) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
+        Motor.panelYazi = false          // her açılış doğrudan dinleme modunda başlar
         kilitUstu()
         aktif = this
         Motor.init(context.applicationContext)
