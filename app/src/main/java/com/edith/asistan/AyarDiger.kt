@@ -310,5 +310,8 @@ fun SayfaPanel(geri: () -> Unit) {
                 color = SolukKoyu, fontSize = 12.sp, lineHeight = 16.sp
             )
         }
+        Bolum("Kurulum sihirbazı", "İlk açılıştaki adım adım kurulumu yeniden başlatır; izinleri ve anahtarı gözden geçirebilirsin.") {
+            Dugme("Sihirbazı başlat", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) { Motor.ayarAcik = false; Motor.kurulumGoster = true }
+        }
     }
 }

@@ -87,6 +87,9 @@ object Motor : DinleyiciGeri {
     var guncelKontrolHata by mutableStateOf<String?>(null)
     var guncelKontrolEdiliyor by mutableStateOf(false)
     private var guncelIndirmeId = -1L
+    var duzenleIndex by mutableStateOf(-1)          // düzenlenen mesajın sırası (-1: yok)
+    var duzenleMetin by mutableStateOf("")
+    var mesajMenusu by mutableStateOf(-1)           // eylem paneli açık olan mesajın sırası
     var islemler by mutableStateOf<List<String>?>(null)   // alttan açılan işlemler paneli
     var panelCevap by mutableStateOf(false)       // panelde güncel cevap kartı gösteriliyor
     val sesKapaliSohbetler = mutableStateListOf<String>()   // kullanıcının hoparlörü kapattığı sohbetler (oturum boyunca)
@@ -565,6 +568,39 @@ object Motor : DinleyiciGeri {
         }
     }
 
+    // ── Mesaj eylemleri: sil / düzenle (kopyalama arayüzde)
+    fun mesajSil(i: Int) {
+        val k = aktif ?: return
+        if (i !in k.mesajlar.indices || i !in mesajlar.indices) return
+        k.mesajlar.removeAt(i)
+        mesajlar.removeAt(i)
+        k.ozet = ""; k.ozetKapsam = 0       // özet eski geçmişe dayanıyordu
+        kaydetKayit(k)
+    }
+
+    fun duzenleBaslat(i: Int) {
+        val m = mesajlar.getOrNull(i) ?: return
+        if (!m.kullanici) return
+        duzenleIndex = i
+        duzenleMetin = m.metin
+    }
+
+    fun duzenleIptal() { duzenleIndex = -1; duzenleMetin = "" }
+
+    /** Düzenlenen mesaj ve sonrası geçmişten silinir; yeni metin, ondan önceki geçmişle yeniden gönderilir. */
+    fun duzenleGonder(yeni: String) {
+        val i = duzenleIndex
+        val k = aktif
+        if (k == null || i !in k.mesajlar.indices || yeni.isBlank()) { duzenleIptal(); return }
+        if (faz == Faz.ISLE || faz == Faz.KONUS) { aktifIsiDurdur(); Ses.kes() }
+        while (k.mesajlar.size > i) k.mesajlar.removeAt(k.mesajlar.lastIndex)
+        while (mesajlar.size > i) mesajlar.removeAt(mesajlar.lastIndex)
+        k.ozet = ""; k.ozetKapsam = 0
+        duzenleIptal()
+        kaydetKayit(k)
+        gonder(yeni, sesli = false)
+    }
+
     fun sohbetAdDegistir(id: String, ad: String) {
         val k = kayitlar[id] ?: return
         val t = ad.trim()
@@ -859,7 +895,7 @@ object Motor : DinleyiciGeri {
                 if (bitti && sonCevap.isNotBlank() && ((!onde && !panelGorunur) || !aktifMi)) {
                     Bildirimler.cevap(ctx, kayit.id, kayit.baslik, sonCevap)
                 }
-                if (aktifMi && mikAcik && hata == null && ((soru && ayarlar.soruSorunca) || ayarlar.herCevapta)) {
+                if (sesli && aktifMi && mikAcik && hata == null && ((soru && ayarlar.soruSorunca) || ayarlar.herCevapta)) {
                     dinleyici?.takipIste()
                 }
                 ozetGuncelle(kayit)
