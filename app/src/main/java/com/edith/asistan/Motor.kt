@@ -158,6 +158,7 @@ object Motor : DinleyiciGeri {
         }
         scope.launch(Dispatchers.IO) { Gemini.isin() }
         if (!kurulumGoster) guncellemeKontrol(true)
+        modelleriTazele()
         if (!Kuyruk.bosMu(ctx)) Kuyruk.planla(ctx)   // önceki oturumdan kalan, gönderilmemiş mesajlar var
         scope.launch { // MCP bağlantıları arka planda hazır tutulur
             while (true) {
@@ -222,6 +223,15 @@ object Motor : DinleyiciGeri {
                         return@launch
                     }
                 }
+            }
+        }
+    }
+
+    /** Açılışta anahtarı olan servislerin model listesini getirir, önbellekle farkını alır (yeniler eklenir, kalkanlar silinir). */
+    fun modelleriTazele() {
+        scope.launch(Dispatchers.IO) {
+            Ayarlar.YAPAY_ZEKA_SERVISLER.filter { ayarlar.servisAnahtar(it).isNotBlank() }.forEach { s ->
+                runCatching { ModelKatalog.yenile(ctx, ayarlar, s) }
             }
         }
     }

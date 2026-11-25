@@ -23,13 +23,14 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AyarlarEkrani(kapat: () -> Unit) {
     var sayfa by remember { mutableStateOf("ana") }
-    val ust = mapOf("ses_gemini" to "ses", "ses_eleven" to "ses")
+    val ust = mapOf("ses_gemini" to "ses", "ses_eleven" to "ses") + Ayarlar.YAPAY_ZEKA_SERVISLER.associate { "ai_$it" to "ai" }
     BackHandler { if (sayfa == "ana") kapat() else sayfa = ust[sayfa] ?: "ana" }
     DisposableEffect(Unit) { onDispose { Motor.testiBitir() } }
     LaunchedEffect(sayfa) { Motor.izinYenile() }
 
     when (sayfa) {
-        "ai" -> SayfaYapayZeka { sayfa = "ana" }
+        "ai" -> SayfaYapayZeka(geri = { sayfa = "ana" }, git = { sayfa = it })
+        "ai_gemini", "ai_groq", "ai_mistral", "ai_cerebras" -> SayfaServis(sayfa.removePrefix("ai_")) { sayfa = "ai" }
         "guncelleme" -> SayfaHakkinda { sayfa = "ana" }
         "ses" -> SayfaSes(geri = { sayfa = "ana" }, git = { sayfa = it })
         "ses_gemini" -> SayfaGemini { sayfa = "ses" }
@@ -48,7 +49,7 @@ private fun AnaAyarlar(kapat: () -> Unit, git: (String) -> Unit) {
         val a = Motor.ayarlar
         val satirlar = listOf(
             listOf(
-                Triple("ai", "Yapay zeka", "Gemini anahtarı, modeller, yönlendirme"),
+                Triple("ai", "Yapay zeka", "Gemini, Groq, Mistral, Cerebras ve modelleri"),
                 Triple("ses", "Ses", "Motor sırası, Gemini ve ElevenLabs sesleri")
             ),
             listOf(

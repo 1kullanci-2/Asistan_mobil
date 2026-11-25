@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -483,6 +485,7 @@ fun ModelPaneli() {
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("Model seç", color = MetinKoyu, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, fontSize = 20.sp)
+                Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val servisler = Ayarlar.YAPAY_ZEKA_SERVISLER.filter { a.servisAnahtar(it).isNotBlank() }
                 if (servisler.isEmpty()) {
                     Text("Henüz API anahtarı girilmedi. Ayarlar → Yapay zeka bölümünden bir servis ekle.", color = SolukKoyu, fontSize = 14.sp)
@@ -507,6 +510,7 @@ fun ModelPaneli() {
                             if (secili) Text("✓", color = Vurgu, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
                 }
             }
         }

@@ -45,14 +45,29 @@ class Ayarlar(ctx: Context) {
             "mistral" -> "mistral-small-latest"
             else -> ""
         }
-        return oku("modeller_$servis", varsayilan).split(",").map { it.trim() }.filter { it.isNotEmpty() }.take(2)
+        return oku("modeller_$servis", varsayilan).split(",").map { it.trim() }.filter { it.isNotEmpty() }
     }
 
     fun servisModelleri(servis: String, liste: List<String>) =
-        yaz("modeller_$servis", liste.filter { it.isNotBlank() }.distinct().take(2).joinToString(","))
+        yaz("modeller_$servis", liste.filter { it.isNotBlank() }.distinct().joinToString(","))
 
     /** Yeni sohbetlerin başlangıç seçimi: Gemini'nin en hızlısı (anahtar yoksa anahtarı olan ilk servis). */
+    var varsayilanServis: String
+        get() = oku("varsayilan_servis")
+        set(v) = yaz("varsayilan_servis", v)
+    var varsayilanModel: String
+        get() = oku("varsayilan_model")
+        set(v) = yaz("varsayilan_model", v)
+
+    /** Servisin seçili modellerini varsayılana (ilk kurulumdaki haline) döndürür. */
+    fun servisSifirla(servis: String) {
+        sp.edit().remove("modeller_$servis").apply()
+        if (varsayilanServis == servis) { varsayilanServis = ""; varsayilanModel = "" }
+    }
+
     fun varsayilanSecim(): String {
+        val vs = varsayilanServis
+        if (vs.isNotBlank() && servisAnahtar(vs).isNotBlank() && varsayilanModel in servisModelleri(vs)) return "$vs|$varsayilanModel"
         val servis = YAPAY_ZEKA_SERVISLER.firstOrNull { servisAnahtar(it).isNotBlank() } ?: "gemini"
         val model = servisModelleri(servis).firstOrNull() ?: ""
         return "$servis|$model"
