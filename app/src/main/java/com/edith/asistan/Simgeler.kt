@@ -60,6 +60,11 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                     drawLine(renk, Offset(21f * u, 9f * u), Offset(16f * u, 15f * u), 1.9f * u, StrokeCap.Round)
                 }
             }
+            "daha" -> for (y in listOf(5f, 12f, 19f)) drawCircle(renk, 1.8f * u, Offset(12f * u, y * u))
+            "ok_asagi" -> {
+                val p = Path(); p.moveTo(6f * u, 9f * u); p.lineTo(12f * u, 15f * u); p.lineTo(18f * u, 9f * u)
+                drawPath(p, renk, style = kalem)
+            }
             "durdur" -> drawRoundRect(renk, Offset(5f * u, 5f * u), Size(14f * u, 14f * u), CornerRadius(3f * u))
             "klavye" -> {
                 drawRoundRect(renk, Offset(2.5f * u, 6f * u), Size(19f * u, 12f * u), CornerRadius(2.5f * u), style = kalem)

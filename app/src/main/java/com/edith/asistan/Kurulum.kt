@@ -3,6 +3,14 @@ package com.edith.asistan
 import android.Manifest
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -51,9 +59,110 @@ private val IPUCLARI = listOf(
     "Varsayılan dijital asistan yaparsan güç tuşuyla da açabilirsin."
 )
 
-/** İlk yüklemede bir kez görünür: ses modellerini tek çubukla indirir, izinleri açıklar. */
+/** İlk yüklemede bir kez görünür: adım adım karşılama; her izin ve ayarın neden gerektiği açıklanır. */
 @Composable
 fun KurulumEkrani(onIzin: (Array<String>) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val bildirimAdimi = Build.VERSION.SDK_INT >= 33
+    val adimlar = remember { listOfNotNull("hos", "mik", if (bildirimAdimi) "bildirim" else null, "anahtar", "model") }
+    var adim by remember { mutableIntStateOf(0) }
+    var ileri by remember { mutableStateOf(true) }
+    var anahtar by remember { mutableStateOf(Motor.ayarlar.apiKey) }
+    fun git(i: Int) { ileri = i > adim; adim = i.coerceIn(0, adimlar.lastIndex) }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 24.dp)) {
+        // Üstte adım noktaları
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center) {
+            adimlar.indices.forEach { i ->
+                val w by animateDpAsState(if (i == adim) 26.dp else 8.dp, tween(250), label = "nokta")
+                Box(
+                    Modifier.padding(horizontal = 4.dp).height(8.dp).width(w).clip(RoundedCornerShape(50))
+                        .background(if (i <= adim) Krem else Yuzey)
+                )
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            AnimatedContent(
+                targetState = adim,
+                transitionSpec = {
+                    val yon = if (ileri) 1 else -1
+                    (fadeIn(tween(260)) + slideInHorizontally(tween(260)) { it / 6 * yon }) togetherWith
+                        (fadeOut(tween(160)) + slideOutHorizontally(tween(260)) { -it / 6 * yon })
+                },
+                label = "adim"
+            ) { i ->
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    when (adimlar[i]) {
+                        "hos" -> {
+                            DusunenIkon(Krem, 64.dp)
+                            Text("Hoş geldiniz", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 34.sp)
+                            Aciklama("Birkaç kısa adımda E.D.I.T.H.'i hazırlayalım. Her adımda neye ihtiyaç duyduğumuzu ve nedenini söyleyeceğiz; istediğin adımı atlayabilirsin.")
+                        }
+                        "mik" -> {
+                            Simge("mik", Krem, Modifier.size(56.dp))
+                            Text("Mikrofon", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
+                            Aciklama("Sesli komutları ve “hey edit” çağrısını duyabilmek için mikrofon izni gereklidir. Ses tanıma telefonda çalışır; konuşman kaydedilip bir yere gönderilmez.")
+                            if (Motor.izinMikrofon) Durum("Mikrofon izni verildi")
+                            else KurulumDugme("Mikrofon iznini ver", true) { onIzin(arrayOf(Manifest.permission.RECORD_AUDIO)) }
+                        }
+                        "bildirim" -> {
+                            Simge("uyan", Krem, Modifier.size(56.dp))
+                            Text("Bildirimler", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
+                            Aciklama("Uygulamadan çıktığında cevabın hazır olduğunu haber verebilmem için bildirim izni gereklidir. Yalnızca cevap geldiğinde bildirim gösterilir; başka bildirim gönderilmez.")
+                            if (Motor.izinBildirim) Durum("Bildirim izni verildi")
+                            else KurulumDugme("Bildirimlere izin ver", true) { onIzin(arrayOf(Manifest.permission.POST_NOTIFICATIONS)) }
+                        }
+                        "anahtar" -> {
+                            Simge("ai", Krem, Modifier.size(56.dp))
+                            Text("Yapay zeka anahtarı", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
+                            Aciklama("Cevap üretebilmem için bir Gemini API anahtarı gereklidir. Anahtar yalnızca bu telefonda saklanır. Groq, Mistral ve Cerebras gibi diğer sağlayıcıları sonradan Ayarlar → Yapay zeka bölümünden ekleyebilirsin.")
+                            Alan(anahtar, { anahtar = it; Motor.ayarlar.apiKey = it }, "Gemini API anahtarı", gizli = true)
+                            Text(
+                                "Anahtarı nereden alırım?",
+                                Modifier.clickable {
+                                    runCatching {
+                                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://aistudio.google.com/apikey")))
+                                    }
+                                }.padding(8.dp),
+                                color = Krem, fontSize = 14.sp, fontWeight = FontWeight.Medium
+                            )
+                            if (anahtar.isNotBlank()) Durum("Anahtar kaydedildi")
+                        }
+                        else -> ModelAdimi()
+                    }
+                }
+            }
+        }
+        // Alt düğmeler
+        val son = adim == adimlar.lastIndex
+        val hazir = Motor.modellerHazir
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (son) KurulumDugme(if (hazir) "Başla" else "Yüklenirken bekle", true, etkin = hazir) { Motor.kurulumBitti() }
+            else KurulumDugme(if (adim == 0) "Başlayalım" else "Devam", true) { git(adim + 1) }
+            Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                if (adim > 0) Text("Geri", Modifier.clickable { git(adim - 1) }.padding(10.dp), color = SolukKrem, fontSize = 14.sp) else Spacer(Modifier.width(1.dp))
+                if (son && !hazir) Text("Şimdilik atla", Modifier.clickable { Motor.kurulumBitti() }.padding(10.dp), color = SolukKrem, fontSize = 14.sp)
+                else if (!son && adim > 0) Text("Atla", Modifier.clickable { git(adim + 1) }.padding(10.dp), color = SolukKrem, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Aciklama(t: String) =
+    Text(t, color = SolukKrem, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 22.sp)
+
+@Composable
+private fun Durum(t: String) =
+    Text("✓  $t", color = YesilAcik, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+
+/** Son adım: ses modelleri tek ilerleme çubuğuyla iner; bu sırada ipuçları döner. */
+@Composable
+private fun ModelAdimi() {
     var ipucu by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -63,78 +172,31 @@ fun KurulumEkrani(onIzin: (Array<String>) -> Unit) {
     }
     val oran by animateFloatAsState(Motor.kurulumOran.coerceIn(0f, 1f), tween(300), label = "oran")
     val hazir = Motor.modellerHazir
-    val bildirimGerek = Build.VERSION.SDK_INT >= 33 && !Motor.izinBildirim
-
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(Modifier.height(24.dp))
-        Text("Hoş geldiniz", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 34.sp)
-        Text(
-            "E.D.I.T.H. sizi duyabilmek için iki küçük ses modeli (Türkçe ve İngilizce, toplam yaklaşık 75 MB) indirir. " +
-                "Bu yalnızca bir kez olur; sonrasında ses tanıma telefonda, internetsiz çalışır.",
-            color = SolukKrem, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 22.sp
-        )
-
-        // Tek birleşik ilerleme çubuğu
-        Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-                Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(50))
-                    .background(Yuzey)
-            ) {
-                Box(Modifier.fillMaxWidth(if (hazir) 1f else oran).fillMaxHeight().clip(RoundedCornerShape(50)).background(Krem))
-            }
-            val durum = when {
-                hazir -> "Hazır"
-                Motor.hata != null && Motor.indirme == null -> "Bir sorun oluştu"
-                else -> Motor.indirme ?: "Başlıyor…"
-            }
-            Text(
-                "$durum  ·  %${if (hazir) 100 else (oran * 100).toInt()}",
-                color = MetinKrem, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
-            )
+    Simge("ses", Krem, Modifier.size(56.dp))
+    Text("Ses modelleri", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
+    Aciklama("Sizi internetsiz, telefonda anlayabilmem için iki küçük ses modeli (Türkçe ve İngilizce, toplam yaklaşık 75 MB) indirilmesi gereklidir. Bu yalnızca bir kez olur.")
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(50)).background(Yuzey)) {
+            Box(Modifier.fillMaxWidth(if (hazir) 1f else oran).fillMaxHeight().clip(RoundedCornerShape(50)).background(Krem))
         }
-        if (!hazir && Motor.hata != null && Motor.indirme == null) {
-            Text(Motor.hata.orEmpty(), color = HataAcik, fontSize = 13.sp, textAlign = TextAlign.Center)
-            KurulumDugme("Tekrar dene", true) { Motor.hata = null; Motor.acilistaYukle() }
+        val durum = when {
+            hazir -> "Hazır"
+            Motor.hata != null && Motor.indirme == null -> "Bir sorun oluştu"
+            else -> Motor.indirme ?: "Başlıyor…"
         }
-
-        // Bilgi ve ipuçları
-        Box(
-            Modifier.fillMaxWidth().cam(RoundedCornerShape(22.dp)).padding(18.dp).height(64.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            AnimatedContent(
-                targetState = ipucu,
-                transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(300)) },
-                label = "ipucu"
-            ) { i -> Text(IPUCLARI[i], color = MetinKrem, fontSize = 15.sp, lineHeight = 21.sp) }
-        }
-
-        // İzinler (isteğe bağlı; kullanıcı dokunursa istenir)
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!Motor.izinMikrofon) {
-                Text("Sesinizi duyabilmem için mikrofon izni gerekir.", color = SolukKrem, fontSize = 13.sp)
-                KurulumDugme("Mikrofon iznini ver", false) { onIzin(arrayOf(Manifest.permission.RECORD_AUDIO)) }
-            }
-            if (bildirimGerek) {
-                Text("Cevap geldiğinde uygulama kapalıysa haber verebilmem için bildirim izni gerekir.", color = SolukKrem, fontSize = 13.sp)
-                KurulumDugme("Bildirimlere izin ver", false) {
-                    onIzin(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
-                }
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        KurulumDugme(if (hazir) "Başla" else "Yüklenirken bekle", true, etkin = hazir) { Motor.kurulumBitti() }
-        if (!hazir) {
-            Text(
-                "Şimdilik atla", Modifier.clickable { Motor.kurulumBitti() }.padding(10.dp),
-                color = SolukKrem, fontSize = 13.sp
-            )
-        }
+        Text("$durum  ·  %${if (hazir) 100 else (oran * 100).toInt()}", color = MetinKrem, fontSize = 13.sp,
+            modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+    }
+    if (!hazir && Motor.hata != null && Motor.indirme == null) {
+        Text(Motor.hata.orEmpty(), color = HataAcik, fontSize = 13.sp, textAlign = TextAlign.Center)
+        KurulumDugme("Tekrar dene", true) { Motor.hata = null; Motor.acilistaYukle() }
+    }
+    Box(Modifier.fillMaxWidth().cam(RoundedCornerShape(22.dp)).padding(18.dp).height(64.dp), contentAlignment = Alignment.CenterStart) {
+        AnimatedContent(
+            targetState = ipucu,
+            transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(300)) },
+            label = "ipucu"
+        ) { i -> Text(IPUCLARI[i], color = MetinKrem, fontSize = 15.sp, lineHeight = 21.sp) }
     }
 }
 

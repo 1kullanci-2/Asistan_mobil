@@ -87,6 +87,7 @@ object Motor : DinleyiciGeri {
     var guncelKontrolHata by mutableStateOf<String?>(null)
     var guncelKontrolEdiliyor by mutableStateOf(false)
     private var guncelIndirmeId = -1L
+    var islemler by mutableStateOf<List<String>?>(null)   // alttan açılan işlemler paneli
     var panelCevap by mutableStateOf(false)       // panelde güncel cevap kartı gösteriliyor
     val sesKapaliSohbetler = mutableStateListOf<String>()   // kullanıcının hoparlörü kapattığı sohbetler (oturum boyunca)
     private var sorudaDinliyordu = false
@@ -562,6 +563,14 @@ object Motor : DinleyiciGeri {
             yuklendi.await()
             sohbetAc(id)
         }
+    }
+
+    fun sohbetAdDegistir(id: String, ad: String) {
+        val k = kayitlar[id] ?: return
+        val t = ad.trim()
+        if (t.isEmpty()) return
+        k.baslik = t.take(60)
+        kaydetKayit(k)
     }
 
     fun sohbetSil(id: String) {

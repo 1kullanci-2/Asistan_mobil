@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -120,6 +121,7 @@ fun Uygulama(onMik: () -> Unit, onIzin: (Array<String>) -> Unit = {}) {
             if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
             OnayDiyalogu()
             ModelPaneli()
+            IslemPaneli()
             GuncellemePaneli()
         }
     }
@@ -159,10 +161,14 @@ fun CamDugme(simge: String, tikla: () -> Unit) {
     ) { Simge(simge, MetinKrem, Modifier.size(22.dp)) }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun YanPanel() {
     BackHandler(enabled = Motor.menuAcik) { Motor.menuAcik = false }
     var silinecek by remember { mutableStateOf<SohbetBaslik?>(null) }
+    var menuId by remember { mutableStateOf<String?>(null) }
+    var adDegisecek by remember { mutableStateOf<SohbetBaslik?>(null) }
+    var yeniAd by remember { mutableStateOf("") }
     AnimatedVisibility(visible = Motor.menuAcik, enter = fadeIn(), exit = fadeOut()) {
         Box(
             Modifier.fillMaxSize().background(Color(0x59000000))
@@ -201,24 +207,64 @@ fun YanPanel() {
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(Motor.sohbetler, key = { it.id }) { sb ->
                     val secili = sb.id == Motor.aktifId
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                            .background(if (secili) YuzeyAcik else Color.Transparent)
-                            .clickable { Motor.sohbetAc(sb.id) }.padding(start = 14.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            sb.baslik, Modifier.weight(1f).padding(vertical = 12.dp), color = MetinKrem, fontSize = 15.sp,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                        Box(
-                            Modifier.size(40.dp).clip(CircleShape).clickable { silinecek = sb },
-                            contentAlignment = Alignment.Center
-                        ) { Simge("cop", SolukKrem, Modifier.size(18.dp)) }
+                    Box {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                .background(if (secili) YuzeyAcik else Color.Transparent)
+                                .combinedClickable(onClick = { Motor.sohbetAc(sb.id) }, onLongClick = { menuId = sb.id })
+                                .padding(start = 14.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                sb.baslik, Modifier.weight(1f).padding(vertical = 12.dp), color = MetinKrem, fontSize = 15.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            Box(
+                                Modifier.size(40.dp).clip(CircleShape).clickable { menuId = sb.id },
+                                contentAlignment = Alignment.Center
+                            ) { Simge("daha", SolukKrem, Modifier.size(20.dp)) }
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = menuId == sb.id,
+                            onDismissRequest = { menuId = null },
+                            offset = androidx.compose.ui.unit.DpOffset(120.dp, 0.dp),
+                            containerColor = Krem
+                        ) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Ad değiştir", color = MetinKoyu) },
+                                onClick = { menuId = null; adDegisecek = sb; yeniAd = sb.baslik }
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Sil", color = Hata) },
+                                onClick = { menuId = null; silinecek = sb }
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+    adDegisecek?.let { sb ->
+        AlertDialog(
+            onDismissRequest = { adDegisecek = null },
+            containerColor = Krem,
+            title = { Text("Sohbet adı", color = MetinKoyu) },
+            text = {
+                androidx.compose.material3.TextField(
+                    value = yeniAd, onValueChange = { yeniAd = it.take(60) }, singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = KremAcik, unfocusedContainerColor = KremAcik,
+                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                        cursorColor = Vurgu, focusedTextColor = MetinKoyu, unfocusedTextColor = MetinKoyu
+                    )
+                )
+            },
+            confirmButton = {
+                Text("Kaydet", Modifier.clickable { Motor.sohbetAdDegistir(sb.id, yeniAd); adDegisecek = null }.padding(12.dp),
+                    color = Vurgu, fontWeight = FontWeight.SemiBold)
+            },
+            dismissButton = { Text("Vazgeç", Modifier.clickable { adDegisecek = null }.padding(12.dp), color = SolukKoyu) }
+        )
     }
     silinecek?.let { sb ->
         AlertDialog(
@@ -339,28 +385,54 @@ fun AsistanMesaji(m: Mesaj, hoparlor: Boolean = false) {
     }
 }
 
-/** "araç kullanıldı ›" satırı: dokununca kullanılan araçlar aşağı doğru açılır. */
+/** "İşlemler ⌄" satırı: dokununca kullanılan işlemler alttan açılan bir panelde listelenir. */
 @Composable
 fun AracSatiri(araclar: List<String>) {
-    var acik by remember { mutableStateOf(false) }
-    val donus by animateFloatAsState(if (acik) 270f else 180f, label = "ok")
-    val sekil = RoundedCornerShape(50)
-    Column {
-        Row(
-            Modifier.clip(sekil).background(Yuzey).border(1.dp, YuzeyKenar, sekil)
-                .clickable { acik = !acik }.padding(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Row(
+        Modifier.clip(RoundedCornerShape(10.dp)).clickable { Motor.islemler = araclar }.padding(vertical = 4.dp, horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("İşlemler", color = SolukKrem, fontSize = 13.sp)
+        Spacer(Modifier.width(4.dp))
+        Simge("ok_asagi", SolukKrem, Modifier.size(16.dp))
+    }
+}
+
+private fun islemAdi(s: String): String =
+    s.substringAfterLast("__").replace('_', ' ').trim().replaceFirstChar { it.uppercase() }
+
+/** İşlemler listesi: alttan açılır, her işlem ayrı bir satırda. */
+@Composable
+fun IslemPaneli() {
+    val liste = Motor.islemler
+    BackHandler(liste != null) { Motor.islemler = null }
+    AnimatedVisibility(visible = liste != null, enter = fadeIn(tween(150)), exit = fadeOut(tween(120))) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { Motor.islemler = null },
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Text(
-                if (araclar.size == 1) "araç kullanıldı" else "${araclar.size} araç kullanıldı",
-                color = MetinKrem, fontSize = 13.sp
-            )
-            Spacer(Modifier.width(6.dp))
-            Simge("geri", MetinKrem, Modifier.size(14.dp).rotate(donus))
-        }
-        AnimatedVisibility(visible = acik, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column(Modifier.padding(start = 6.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                araclar.forEach { Text("•  $it", color = SolukKrem, fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+            val sekil = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            Column(
+                Modifier.fillMaxWidth().clip(sekil).background(Krem).border(1.dp, KremKoyu, sekil)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .navigationBarsPadding().padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("İşlemler", color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 20.sp)
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    (liste ?: emptyList()).forEach { ad ->
+                        val k = RoundedCornerShape(16.dp)
+                        Row(
+                            Modifier.fillMaxWidth().clip(k).background(Color.White).border(1.dp, KremKoyu, k).padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Vurgu))
+                            Spacer(Modifier.width(12.dp))
+                            Text(islemAdi(ad), color = MetinKoyu, fontSize = 15.sp)
+                        }
+                    }
+                }
             }
         }
     }
