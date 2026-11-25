@@ -81,6 +81,17 @@ fun KurulumEkrani(onIzin: (Array<String>) -> Unit) {
                 )
             }
         }
+        // Ses modelleri ilk açılıştan beri arka planda iner; her adımda ince bir çubukla görünür
+        if (adimlar[adim] != "model") {
+            val o by animateFloatAsState(if (Motor.modellerHazir) 1f else Motor.kurulumOran.coerceIn(0f, 1f), tween(300), label = "arka")
+            Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(Yuzey)) {
+                    Box(Modifier.fillMaxWidth(o).fillMaxHeight().background(Krem))
+                }
+                Text(if (Motor.modellerHazir) "Ses modelleri hazır" else "Ses modelleri arka planda iniyor · %${(o * 100).toInt()}",
+                    color = SolukKrem, fontSize = 11.sp)
+            }
+        }
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             AnimatedContent(
                 targetState = adim,
