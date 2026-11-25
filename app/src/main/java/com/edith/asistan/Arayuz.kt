@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -117,6 +118,7 @@ fun Uygulama(onMik: () -> Unit, onIzin: (Array<String>) -> Unit = {}) {
             if (Motor.ayarAcik) AyarlarEkrani { Motor.ayarAcik = false }
             OnayDiyalogu()
             ModelPaneli()
+            GuncellemePaneli()
         }
     }
 }
@@ -262,11 +264,13 @@ fun Sohbet(mod: Modifier) {
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        items(Motor.mesajlar) { m ->
-            if (m.not) NotSatiri(m.metin) else if (m.kullanici) KullaniciBalonu(m.metin, 1f) else AsistanMesaji(m)
+        val sonAsistan = Motor.mesajlar.indexOfLast { !it.kullanici && !it.not }
+        itemsIndexed(Motor.mesajlar) { i, m ->
+            if (m.not) NotSatiri(m.metin) else if (m.kullanici) KullaniciBalonu(m.metin, 1f)
+            else AsistanMesaji(m, hoparlor = i == sonAsistan && (Motor.faz == Faz.KONUS || Motor.sesKapaliMi()))
         }
         if (canliVar) item { KullaniciBalonu(Motor.canli, 0.65f) }
-        if (akan) item { AsistanMetni(Motor.akanMetin) } else if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
+        if (akan) item { AsistanMetni(Motor.akanMetin, hoparlor = Motor.faz == Faz.KONUS) } else if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
         Motor.indirme?.let { t -> item { Text(t, color = VurguAcik, fontSize = 13.sp) } }
         Motor.hata?.let { h -> item { Text(h, color = HataAcik, fontSize = 13.sp) } }
     }
@@ -291,10 +295,24 @@ fun KullaniciBalonu(metin: String, alfa: Float) {
 }
 
 @Composable
-fun AsistanMetni(metin: String) {
-    SelectionContainer {
-        Text(metin, color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
+fun AsistanMetni(metin: String, hoparlor: Boolean = false) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SelectionContainer {
+            Text(metin, color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
+        }
+        if (hoparlor) HoparlorDugmesi()
     }
+}
+
+/** Sesli cevaplarda görünen hoparlör: varsayılan açık; kapatılırsa bu sohbette tekrar açılana kadar kapalı kalır. */
+@Composable
+fun HoparlorDugmesi() {
+    val kapali = Motor.sesKapaliMi()
+    Box(
+        Modifier.size(34.dp).clip(CircleShape).background(Yuzey).border(1.dp, YuzeyKenar, CircleShape)
+            .clickable { Motor.sesDegistir() },
+        contentAlignment = Alignment.Center
+    ) { Simge(if (kapali) "hoparlor_kapali" else "hoparlor", MetinKrem, Modifier.size(18.dp)) }
 }
 
 /** Düşünürken parlayan yazı; araç çalışırken hangi araç olduğu da görünür. */
@@ -305,14 +323,17 @@ fun Dusunuyor() {
     val soluk = MetinKrem.copy(alpha = 0.5f)
     val firca = Brush.linearGradient(listOf(soluk, MetinKrem, soluk), start = Offset(kay, 0f), end = Offset(kay + 260f, 0f))
     val yazi = if (Motor.adim.isNotBlank()) Motor.adim + "…" else "Düşünüyor…"
-    Text(yazi, style = TextStyle(brush = firca, fontFamily = FontFamily.Serif, fontSize = 16.sp))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        DusunenIkon(MetinKrem)
+        Text(yazi, style = TextStyle(brush = firca, fontFamily = FontFamily.Serif, fontSize = 16.sp))
+    }
 }
 
 @Composable
-fun AsistanMesaji(m: Mesaj) {
+fun AsistanMesaji(m: Mesaj, hoparlor: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (m.araclar.isNotEmpty()) AracSatiri(m.araclar)
-        AsistanMetni(m.metin)
+        AsistanMetni(m.metin, hoparlor)
     }
 }
 
@@ -353,6 +374,7 @@ fun GirisCubugu(onMik: () -> Unit) {
     val genis = klavyeAcik || yaziVar
     // Yazmaya başlayınca sesle dinleme bırakılır
     LaunchedEffect(yaziVar) { if (yaziVar && Motor.faz == Faz.KOMUT) Motor.dinlemeyiIptal() }
+    val bekliyor = Motor.faz == Faz.ISLE
     val sekil = RoundedCornerShape(if (genis) 30.dp else 34.dp)
     Box(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
@@ -395,7 +417,8 @@ fun GirisCubugu(onMik: () -> Unit) {
             }
             Box(
                 Modifier.size(46.dp).clip(CircleShape).background(if (dinliyor) Yesil else Vurgu).clickable {
-                    if (yaziVar) {
+                    if (bekliyor) Motor.durdur()
+                    else if (yaziVar) {
                         Motor.gonder(metin, sesli = false)
                         metin = ""
                     } else if (dinliyor) Motor.dinlemeyiIptal() else onMik()
@@ -403,13 +426,13 @@ fun GirisCubugu(onMik: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 AnimatedContent(
-                    targetState = yaziVar,
+                    targetState = if (bekliyor) 2 else if (yaziVar) 1 else 0,
                     transitionSpec = {
                         (fadeIn(tween(160)) + scaleIn(initialScale = 0.6f)) togetherWith
                             (fadeOut(tween(120)) + scaleOut(targetScale = 0.6f))
                     },
                     label = "gonder"
-                ) { yaz -> Simge(if (yaz) "gonder" else "mik", KremAcik, Modifier.size(24.dp)) }
+                ) { d -> Simge(when (d) { 2 -> "durdur"; 1 -> "gonder"; else -> "mik" }, KremAcik, Modifier.size(if (d == 2) 20.dp else 24.dp)) }
             }
         }
     }

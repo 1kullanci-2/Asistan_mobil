@@ -47,6 +47,20 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                 drawLine(renk, Offset(12f * u, 17f * u), Offset(12f * u, 21f * u), 1.9f * u, StrokeCap.Round)
                 drawLine(renk, Offset(8.5f * u, 21f * u), Offset(15.5f * u, 21f * u), 1.9f * u, StrokeCap.Round)
             }
+            "hoparlor", "hoparlor_kapali" -> {
+                val g = Path()
+                g.moveTo(4f * u, 9.5f * u); g.lineTo(8f * u, 9.5f * u); g.lineTo(13f * u, 5.5f * u)
+                g.lineTo(13f * u, 18.5f * u); g.lineTo(8f * u, 14.5f * u); g.lineTo(4f * u, 14.5f * u); g.close()
+                drawPath(g, renk, style = kalem)
+                if (tur == "hoparlor") {
+                    drawArc(renk, -45f, 90f, false, Offset(9f * u, 8f * u), Size(9f * u, 8f * u), style = kalem)
+                    drawArc(renk, -50f, 100f, false, Offset(7f * u, 4.5f * u), Size(14f * u, 15f * u), style = kalem)
+                } else {
+                    drawLine(renk, Offset(16f * u, 9f * u), Offset(21f * u, 15f * u), 1.9f * u, StrokeCap.Round)
+                    drawLine(renk, Offset(21f * u, 9f * u), Offset(16f * u, 15f * u), 1.9f * u, StrokeCap.Round)
+                }
+            }
+            "durdur" -> drawRoundRect(renk, Offset(5f * u, 5f * u), Size(14f * u, 14f * u), CornerRadius(3f * u))
             "klavye" -> {
                 drawRoundRect(renk, Offset(2.5f * u, 6f * u), Size(19f * u, 12f * u), CornerRadius(2.5f * u), style = kalem)
                 for (x in listOf(6.5f, 10.2f, 13.8f, 17.5f)) drawCircle(renk, 0.9f * u, Offset(x * u, 10f * u))

@@ -18,6 +18,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -113,7 +118,7 @@ object Panel {
         if (gerek) {
             goster()
         } else if (Motor.panelGorunur) {
-            ana.postDelayed({ if (Motor.faz == Faz.BOS && !zorla && !Motor.kapatSorusu) gizle() }, 1200)
+            ana.postDelayed({ if (Motor.faz == Faz.BOS && !zorla && !Motor.kapatSorusu && !Motor.panelYazi && !Motor.panelCevap) gizle() }, 1200)
         }
     }
 
@@ -121,6 +126,7 @@ object Panel {
         if (Motor.panelGorunur) return
         Motor.panelGorunur = true
         Motor.panelYazi = false
+        Motor.panelCevap = false
         val servis = EdithAsistanServisi.instance
         if (servis != null && Motor.asistanMi()) {
             try {
@@ -138,6 +144,8 @@ object Panel {
         if (!Motor.panelGorunur) return
         Motor.panelGorunur = false
         Motor.kapatSorusu = false
+        Motor.panelYazi = false
+        Motor.panelCevap = false
         OverlayHost.gizle(Motor.ctx)
         runCatching { EdithOturum.aktif?.hide() }
     }
@@ -230,6 +238,39 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
             }
         }
         if (tamEkran && Motor.kapatSorusu) KapatSorusu(kapat)
+        // Güncel cevap kartı: dalganın üstünde; yalnızca şu anki cevap görünür
+        val cevap = if (Motor.akanMetin.isNotBlank()) Motor.akanMetin
+        else if (Motor.faz != Faz.ISLE) Motor.mesajlar.lastOrNull { !it.kullanici && !it.not }?.metin.orEmpty() else ""
+        if (Motor.panelCevap && (Motor.faz == Faz.ISLE || cevap.isNotBlank())) {
+            val ks = RoundedCornerShape(26.dp)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(ks).background(Krem)
+                    .border(1.dp, KremKoyu, ks)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+                    .animateContentSize(tween(180))
+                    .padding(start = 16.dp, end = 10.dp, top = 8.dp, bottom = 14.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (Motor.faz == Faz.ISLE && cevap.isBlank()) {
+                        DusunenIkon(MetinKoyu)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (Motor.adim.isNotBlank()) Motor.adim + "…" else "Düşünüyor…", color = SolukKoyu, fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    val kapali = Motor.sesKapaliMi()
+                    Box(
+                        Modifier.size(36.dp).clip(CircleShape).clickable { Motor.sesDegistir() },
+                        contentAlignment = Alignment.Center
+                    ) { Simge(if (kapali) "hoparlor_kapali" else "hoparlor", MetinKoyu, Modifier.size(22.dp)) }
+                }
+                if (cevap.isNotBlank()) {
+                    Column(Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())) {
+                        Text(cevap, color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp, lineHeight = 24.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
         // İnce kapsül: solda yuvarlak klavye/mikrofon düğmesi; ortada dalga (ya da yazı kutusu)
         Row(
             Modifier.fillMaxWidth().then(if (tamEkran) Modifier.imePadding() else Modifier).navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp)
@@ -250,36 +291,11 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
             ) { Simge(if (yazi) "mik" else "klavye", MetinKoyu, Modifier.size(22.dp)) }
 
             Column(Modifier.weight(1f)) {
-                val durum = when (Motor.faz) {
-                    Faz.KOMUT -> "Dinleniyor"
-                    Faz.ISLE -> "Düşünüyor…"
-                    Faz.KONUS -> "Konuşuyor"
-                    Faz.BOS -> if (yazi) "Yaz" else "Hazır"
-                }
-                val yaziRengi = if (Motor.faz == Faz.KOMUT) MetinKoyu else SolukKoyu
                 if (!yazi) {
-                    Dalga(Modifier.fillMaxWidth().height(30.dp))   // şeridin tüm genişliğini kaplar
-                }
-                Text(durum, color = if (Motor.faz == Faz.KOMUT) Yesil else SolukKoyu, fontSize = 11.sp)
-                when (Motor.faz) {
-                    Faz.KOMUT -> if (!yazi) {
-                        if (Motor.canli.isBlank()) Text("Konuş, seni dinliyorum", color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 1)
-                        else Text(Motor.canli, color = yaziRengi, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                    Faz.ISLE -> Text(
-                        Motor.mesajlar.lastOrNull { it.kullanici }?.metin.orEmpty(),
-                        color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                    Faz.KONUS -> Text(
-                        Motor.mesajlar.lastOrNull { !it.kullanici }?.metin.orEmpty(),
-                        color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 15.sp, maxLines = 3, overflow = TextOverflow.Ellipsis
-                    )
-                    Faz.BOS -> Text(
-                        Motor.mesajlar.lastOrNull { !it.kullanici }?.metin.orEmpty(),
-                        color = SolukKoyu, fontFamily = FontFamily.Serif, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (yazi) {
+                    Dalga(Modifier.fillMaxWidth().height(30.dp))   // yalnızca dinlerken hareket eder
+                    if (Motor.faz == Faz.KOMUT && Motor.canli.isNotBlank())
+                        Text(Motor.canli, color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                } else {
                     androidx.compose.material3.TextField(
                         value = metin,
                         onValueChange = { metin = it },
@@ -299,14 +315,32 @@ fun DinlemePaneli(tamEkran: Boolean, kapat: () -> Unit) {
                 }
             }
             if (yazi) {
+                val bekliyor = Motor.faz == Faz.ISLE
                 Box(
-                    Modifier.size(42.dp).clip(CircleShape).background(if (metin.isBlank()) Vurgu.copy(alpha = 0.45f) else Vurgu)
+                    Modifier.size(42.dp).clip(CircleShape).background(if (!bekliyor && metin.isBlank()) Vurgu.copy(alpha = 0.45f) else Vurgu)
                         .clickable {
-                            if (metin.isNotBlank()) { Motor.gonder(metin, sesli = false); metin = "" }
+                            if (bekliyor) Motor.durdur()
+                            else if (metin.isNotBlank()) { Motor.gonder(metin, sesli = false); metin = "" }
                         },
                     contentAlignment = Alignment.Center
-                ) { Simge("gonder", KremAcik, Modifier.size(22.dp)) }
+                ) { Simge(if (bekliyor) "durdur" else "gonder", KremAcik, Modifier.size(if (bekliyor) 18.dp else 22.dp)) }
             }
+        }
+    }
+}
+
+/** Düşünürken: uygulama simgesindeki beş çubuk, sırayla nefes alır. */
+@Composable
+fun DusunenIkon(renk: Color, boyut: androidx.compose.ui.unit.Dp = 26.dp) {
+    val t = rememberInfiniteTransition(label = "dusunenIkon")
+    val faz by t.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "f")
+    Canvas(Modifier.size(boyut)) {
+        val u = size.width / 24f
+        val yuk = listOf(6f, 12f, 17f, 12f, 6f)
+        yuk.forEachIndexed { i, h ->
+            val k = 0.55f + 0.45f * ((sin(faz - i * 0.8f) + 1f) / 2f)
+            val x = (3f + i * 4.5f) * u
+            drawLine(renk, Offset(x, (12f - h * k / 2) * u), Offset(x, (12f + h * k / 2) * u), 2.6f * u, StrokeCap.Round)
         }
     }
 }
@@ -351,9 +385,7 @@ fun Dalga(mod: Modifier) {
     val nabiz by gecis.animateFloat(0.45f, 0.75f, infiniteRepeatable(tween(520, easing = LinearEasing)), label = "nabiz")
     val hedef = when (Motor.faz) {
         Faz.KOMUT -> 0.12f + Motor.seviye * 0.88f
-        Faz.KONUS -> nabiz
-        Faz.ISLE -> 0.14f
-        Faz.BOS -> 0.05f
+        else -> 0f   // dinlemiyorken dalga durur (düz çizgi)
     }
     val genlik by animateFloatAsState(hedef, tween(120), label = "genlik")
     Canvas(mod) {

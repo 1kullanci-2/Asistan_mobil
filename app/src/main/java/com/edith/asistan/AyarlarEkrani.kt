@@ -30,7 +30,7 @@ fun AyarlarEkrani(kapat: () -> Unit) {
 
     when (sayfa) {
         "ai" -> SayfaYapayZeka { sayfa = "ana" }
-        "guncelleme" -> SayfaGuncelleme { sayfa = "ana" }
+        "guncelleme" -> SayfaHakkinda { sayfa = "ana" }
         "ses" -> SayfaSes(geri = { sayfa = "ana" }, git = { sayfa = it })
         "ses_gemini" -> SayfaGemini { sayfa = "ses" }
         "ses_eleven" -> SayfaEleven { sayfa = "ses" }
@@ -59,7 +59,7 @@ private fun AnaAyarlar(kapat: () -> Unit, git: (String) -> Unit) {
                 Triple("baglanti", "Bağlantılar", "MCP araçları, onaylar"),
                 Triple("panel", "İzinler", "Sürekli dinleme, asistan, ekran üstü, pil")
             ),
-            listOf(Triple("guncelleme", "Güncelleme", "Yeni sürüm kontrolü ve APK indirme"))
+            listOf(Triple("guncelleme", "Hakkında", "Sürüm, güncelleme ve değişiklikler"))
         )
         val hedef = mapOf("ai" to "ai", "ses" to "ses", "uyan" to "uyan", "mik" to "mik", "baglanti" to "bag", "panel" to "panel", "guncelleme" to "guncelleme")
         for (satir in satirlar) {

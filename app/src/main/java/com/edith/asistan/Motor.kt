@@ -79,6 +79,16 @@ object Motor : DinleyiciGeri {
     var secim by mutableStateOf("gemini|")          // etkin sohbetin "servis|model" seçimi
     var modelPaneli by mutableStateOf(false)
     var kapatSorusu by mutableStateOf(false)      // panelde "Kapatılsın mı?" sorusu
+    // Güncelleme
+    var guncelleme by mutableStateOf<GuncellemeBilgisi?>(null)
+    var guncellemePaneli by mutableStateOf(false)
+    var guncelOran by mutableStateOf(-1f)          // -1: indirme yok
+    var guncelDurum by mutableStateOf("")
+    var guncelKontrolHata by mutableStateOf<String?>(null)
+    var guncelKontrolEdiliyor by mutableStateOf(false)
+    private var guncelIndirmeId = -1L
+    var panelCevap by mutableStateOf(false)       // panelde güncel cevap kartı gösteriliyor
+    val sesKapaliSohbetler = mutableStateListOf<String>()   // kullanıcının hoparlörü kapattığı sohbetler (oturum boyunca)
     private var sorudaDinliyordu = false
     var kurulumGoster by mutableStateOf(false)    // ilk kurulum ekranı
     var kurulumOran by mutableStateOf(0f)
@@ -147,11 +157,71 @@ object Motor : DinleyiciGeri {
             yuklendi.complete(Unit)
         }
         scope.launch(Dispatchers.IO) { Gemini.isin() }
+        if (!kurulumGoster) guncellemeKontrol(true)
         if (!Kuyruk.bosMu(ctx)) Kuyruk.planla(ctx)   // önceki oturumdan kalan, gönderilmemiş mesajlar var
         scope.launch { // MCP bağlantıları arka planda hazır tutulur
             while (true) {
                 mcpTazele()
                 delay(60_000)
+            }
+        }
+    }
+
+    /** Açılışta sessizce; Hakkında sayfasında hata da gösterilir. Panel, her yeni sürüm için yalnızca bir kez açılır. */
+    fun guncellemeKontrol(sessizKontrol: Boolean) {
+        if (guncelKontrolEdiliyor) return
+        guncelKontrolEdiliyor = true
+        guncelKontrolHata = null
+        scope.launch {
+            try {
+                val b = Guncelleme.kontrol()
+                guncelleme = b
+                if (b != null && b.yeni && ayarlar.duyurulanSurum != b.surum && sessizKontrol) {
+                    ayarlar.duyurulanSurum = b.surum
+                    guncellemePaneli = true
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!sessizKontrol) { UygulamaLog.kaydet(ctx, "Güncelleme kontrolü", e); guncelKontrolHata = UygulamaLog.kullaniciMesaji(e) }
+            }
+            guncelKontrolEdiliyor = false
+        }
+    }
+
+    fun guncelleIndir() {
+        val b = guncelleme ?: return
+        if (guncelOran >= 0f) return
+        try {
+            guncelIndirmeId = Guncelleme.indir(ctx, b.apkUrl)
+        } catch (e: Exception) {
+            UygulamaLog.kaydet(ctx, "APK indirme", e)
+            guncelDurum = UygulamaLog.kullaniciMesaji(e)
+            return
+        }
+        guncelOran = 0f
+        guncelDurum = "İndiriliyor…"
+        scope.launch {
+            while (true) {
+                delay(300)
+                val d = withContext(Dispatchers.IO) { Guncelleme.ilerleme(ctx, guncelIndirmeId) }
+                if (d == null) { guncelOran = -1f; guncelDurum = "İndirme bulunamadı."; return@launch }
+                val (inen, toplam, durum) = d
+                if (toplam > 0) guncelOran = (inen.toFloat() / toplam).coerceIn(0f, 1f)
+                when (durum) {
+                    android.app.DownloadManager.STATUS_SUCCESSFUL -> {
+                        guncelOran = 1f
+                        guncelDurum = "İndirildi, kurulum açılıyor…"
+                        delay(1500)
+                        guncelOran = -1f
+                        return@launch
+                    }
+                    android.app.DownloadManager.STATUS_FAILED -> {
+                        guncelOran = -1f
+                        guncelDurum = "İndirme başarısız oldu. Tekrar dene."
+                        return@launch
+                    }
+                }
             }
         }
     }
@@ -246,6 +316,7 @@ object Motor : DinleyiciGeri {
 
     /** Sohbet ekranındaki mikrofon düğmesi: "hey edit" beklemeden hemen komut dinler. */
     fun sesliKomut() {
+        panelCevap = false
         if (faz == Faz.ISLE || faz == Faz.KONUS) {
             aktifIsiDurdur()
             Ses.kes()
@@ -280,6 +351,7 @@ object Motor : DinleyiciGeri {
     /** Sistem, varsayılan asistan olarak bizi açtığında (uzun basma vb.): hemen dinlemeye başla. */
     fun asistanAcildi() {
         panelGorunur = true
+        panelCevap = false
         if (!mikAcik) {
             bekleyenTakip = true
             mikrofonAc()
@@ -289,6 +361,7 @@ object Motor : DinleyiciGeri {
     /** Panel kapanınca konuşma susar ama düşünen/yazılan cevap iptal edilmez; bitince bildirim gelir. */
     fun panelKapat() {
         panelYazi = false
+        panelCevap = false
         kapatSorusu = false
         aktifId?.let { sessiz.add(it) }
         Ses.kes()
@@ -300,6 +373,11 @@ object Motor : DinleyiciGeri {
     /** Panelin dışına dokunuldu: dinlemeyi durdur, "Kapatılsın mı?" diye sor. */
     fun disaDokunuldu() {
         if (kapatSorusu) return
+        if (faz != Faz.KOMUT) {   // dinlemiyorsa soru sormadan kapat
+            panelKapat()
+            Panel.gizle()
+            return
+        }
         kapatSorusu = true
         sorudaDinliyordu = faz == Faz.KOMUT
         if (sorudaDinliyordu) dinlemeyiIptal()
@@ -315,6 +393,28 @@ object Motor : DinleyiciGeri {
             if (sorudaDinliyordu) sesliKomut()
             sorudaDinliyordu = false
         }
+    }
+
+    fun sesKapaliMi() = (aktifId ?: "") in sesKapaliSohbetler
+
+    /** Hoparlör simgesi: açıksa kapatır (çalan ses kesilir, bu oturumda ses istenmez); kapalıysa açar. */
+    fun sesDegistir() {
+        val k = aktifId ?: ""
+        if (k in sesKapaliSohbetler) sesKapaliSohbetler.remove(k)
+        else {
+            sesKapaliSohbetler.add(k)
+            Ses.kes()
+            if (faz == Faz.KONUS) fazAyarla(Faz.BOS)
+        }
+    }
+
+    /** Gönder düğmesi bekleme sırasında kare (durdur) olur: istek iptal edilir, yeni mesaj yazılabilir. */
+    fun durdur() {
+        aktifIsiDurdur()
+        Ses.kes()
+        akanMetin = ""
+        adim = ""
+        fazAyarla(Faz.BOS)
     }
 
     private fun aktifIsiDurdur() {
@@ -530,6 +630,8 @@ object Motor : DinleyiciGeri {
             aktifId = k.id
             kayitlar[k.id] = k
         }
+        if ("" in sesKapaliSohbetler) { sesKapaliSohbetler.remove(""); sesKapaliSohbetler.add(k.id) }
+        if (panelGorunur) panelCevap = true
         if (k.model.isBlank()) k.model = secim.ifBlank { ayarlar.varsayilanSecim() }
         val kayit: SohbetKaydi = k
         val ilk = kayit.mesajlar.none { !it.kullanici && !it.not }
@@ -601,7 +703,7 @@ object Motor : DinleyiciGeri {
             dinleyici?.kendiWake = false
 
             // Konuşma yalnızca sohbet ekrandayken ve kullanıcı o an uygulamadaysa / panel açıksa sürer.
-            fun sesAcik() = konus && aktif === kayit && kayit.id !in sessiz && (onde || panelGorunur || sesli)
+            fun sesAcik() = konus && aktif === kayit && kayit.id !in sessiz && kayit.id !in sesKapaliSohbetler && (onde || panelGorunur || sesli)
             fun adimYaz(s: String) { if (aktif === kayit) adim = s }
 
             fun cumleGonder(c: String) {
@@ -1047,6 +1149,7 @@ object Motor : DinleyiciGeri {
     fun kurulumBitti() {
         ayarlar.kurulumTamam = true
         kurulumGoster = false
+        guncellemeKontrol(true)
         if (izinMikrofon && onde && modellerHazir && !mikAcik) mikrofonAc()
     }
 

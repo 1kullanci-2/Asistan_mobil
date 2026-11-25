@@ -140,6 +140,11 @@ class Ayarlar(ctx: Context) {
         get() = bool("surekli_dinleme", false)
         set(v) = bool("surekli_dinleme", false, v)
 
+    /** Güncelleme paneli bu sürüm için bir kez gösterilir. */
+    var duyurulanSurum: String
+        get() = sp.getString("duyurulan_surum", "") ?: ""
+        set(v) = sp.edit().putString("duyurulan_surum", v).apply()
+
     // ── Kurulum ve pil
     var kurulumTamam: Boolean
         get() = bool("kurulum_tamam", false)

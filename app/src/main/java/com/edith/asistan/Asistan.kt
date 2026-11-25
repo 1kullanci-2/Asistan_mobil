@@ -74,6 +74,7 @@ class EdithOturum(baglam: Context) : VoiceInteractionSession(baglam) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
+        Motor.panelCevap = false
         Motor.panelYazi = false          // her açılış doğrudan dinleme modunda başlar
         kilitUstu()
         aktif = this

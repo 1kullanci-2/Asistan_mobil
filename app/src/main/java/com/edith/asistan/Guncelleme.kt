@@ -11,10 +11,14 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
+data class SurumNotu(val surum: String, val maddeler: List<String>)
+
+/** [yeni]: yüklü sürümden daha yeni bir sürüm var mı. [notlar]: yüklü sürümden 2 önceki sürümden başlayarak en yeniye kadar (yeniden eskiye). */
 data class GuncellemeBilgisi(
     val surum: String,
     val apkUrl: String,
-    val notlar: String
+    val yeni: Boolean,
+    val notlar: List<SurumNotu>
 )
 
 object Guncelleme {
@@ -57,9 +61,27 @@ object Guncelleme {
             val version = Regex("""Sürüm:\s*([0-9]+(?:[.][0-9]+){1,3})""", RegexOption.IGNORE_CASE)
                 .find(body)?.groupValues?.get(1)
             if (apk == null || version == null) return@withContext null
-            if (!yeniSurum(version, BuildConfig.VERSION_NAME)) return@withContext null
-            GuncellemeBilgisi(version, apk, body)
+            GuncellemeBilgisi(version, apk, yeniSurum(version, BuildConfig.VERSION_NAME), notlariAyir(body))
         }
+    }
+
+    /** Sürüm gövdesindeki "## 0.3.N" başlıklarını ve altındaki "- madde" satırlarını okur; yüklü sürümün 2 öncesinden itibaren olanları döndürür. */
+    private fun notlariAyir(body: String): List<SurumNotu> {
+        fun no(s: String) = s.substringAfterLast('.').toIntOrNull() ?: 0
+        val yuklu = no(BuildConfig.VERSION_NAME)
+        val liste = mutableListOf<SurumNotu>()
+        var ad: String? = null
+        var maddeler = mutableListOf<String>()
+        fun bitir() { ad?.let { liste.add(SurumNotu(it, maddeler)) } }
+        for (satir in body.lines()) {
+            if (satir.startsWith("## ")) {
+                bitir()
+                ad = satir.removePrefix("## ").trim()
+                maddeler = mutableListOf()
+            } else if (ad != null && satir.startsWith("- ")) maddeler.add(satir.removePrefix("- ").trim())
+        }
+        bitir()
+        return liste.filter { no(it.surum) >= yuklu - 2 }.sortedByDescending { no(it.surum) }
     }
 
     private fun yeniSurum(uzak: String, yerel: String): Boolean {
@@ -76,15 +98,32 @@ object Guncelleme {
 
     fun indir(context: Context, url: String): Long {
         require(url.startsWith("https://")) { "Güvenli olmayan indirme adresi." }
+        runCatching {
+            java.io.File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "edith-guncelleme.apk").delete()
+        }
         val request = DownloadManager.Request(Uri.parse(url))
             .setTitle("E.D.I.T.H. güncellemesi")
             .setDescription("Yeni APK indiriliyor…")
             .setMimeType("application/vnd.android.package-archive")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "edith-guncelleme.apk")
         return (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+    }
+
+    /** İndirme durumu: (indirilen bayt, toplam bayt, DownloadManager durumu). */
+    fun ilerleme(context: Context, id: Long): Triple<Long, Long, Int>? {
+        val m = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        m.query(DownloadManager.Query().setFilterById(id))?.use { c ->
+            if (!c.moveToFirst()) return null
+            return Triple(
+                c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)),
+                c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)),
+                c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+            )
+        }
+        return null
     }
 
     fun bekleyenKurulumuAc(context: Context) {
