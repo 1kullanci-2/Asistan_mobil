@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -137,6 +139,65 @@ fun SayfaHakkinda(geri: () -> Unit) {
                     AltKutu {
                         Text(n.surum, color = Vurgu, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         n.maddeler.forEach { Text("•  $it", color = MetinKoyu, fontSize = 13.sp, lineHeight = 18.sp) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Mikrofon ya da canlı konuşma düğmesine ilk kez basıldığında bir kez çıkan açıklama paneli. */
+@Composable
+fun IpucuPaneli() {
+    val tur = Motor.ipucu
+    val dikte = tur == "dikte"
+    AnimatedVisibility(
+        visible = tur != null,
+        enter = fadeIn() + scaleIn(initialScale = 0.92f),
+        exit = fadeOut() + scaleOut(targetScale = 0.92f)
+    ) {
+        Box(
+            Modifier.fillMaxSize().background(Color(0x66000000))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { Motor.ipucu = null },
+            contentAlignment = Alignment.Center
+        ) {
+            val sekil = RoundedCornerShape(26.dp)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 32.dp).clip(sekil).background(Krem)
+                    .border(1.dp, KremKoyu, sekil)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(Vurgu), contentAlignment = Alignment.Center) {
+                        Simge(if (dikte) "mik" else "canli", KremAcik, Modifier.size(22.dp))
+                    }
+                    Text(if (dikte) "Mikrofon" else "Canlı konuşma", color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 20.sp)
+                }
+                Text(
+                    if (dikte) "Söylediklerin mesaj kutusuna yazılır; sen göndermedikçe hiçbir şey gönderilmez."
+                    else "Sohbet eder gibi konuşursun; 1–2 saniye sessiz kalınca mesaj kendiliğinden gönderilir.",
+                    color = MetinKoyu, fontSize = 14.sp, lineHeight = 20.sp
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val maddeler = if (dikte) listOf(
+                        "Kare: dinlemeyi durdurur; yazıyı düzenleyebilir ya da mikrofonla devam edebilirsin.",
+                        "Gönder: dinlemeyi bitirir, mesajı hemen yollar.",
+                        "✕: dinlemeyi iptal eder, söylediklerin silinir."
+                    ) else listOf(
+                        "Kare: dinlemeyi durdurur ve mesajı hemen gönderir.",
+                        "✕: dinlemeyi iptal eder; mesaj gönderilmez."
+                    )
+                    maddeler.forEach { Text("•  $it", color = SolukKoyu, fontSize = 13.sp, lineHeight = 18.sp) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Dugme("Vazgeç", DugmeTuru.IKINCIL, Modifier.weight(1f)) { Motor.ipucu = null; Motor.ipucuSonra = null }
+                    Dugme("Başla", DugmeTuru.BIRINCIL, Modifier.weight(1f)) {
+                        if (dikte) Motor.ayarlar.ipucuDikte = true else Motor.ayarlar.ipucuCanli = true
+                        val e = Motor.ipucuSonra
+                        Motor.ipucu = null; Motor.ipucuSonra = null
+                        e?.invoke()
                     }
                 }
             }

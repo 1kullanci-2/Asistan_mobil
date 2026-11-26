@@ -91,6 +91,8 @@ object Motor : DinleyiciGeri {
     private var dikteBekliyor = false
     private var bekleyenDikte = false
     var mesajUyari by mutableStateOf<Pair<String, Int>?>(null)   // ("sil"|"duzenle", mesaj sırası) onayı
+    var ipucu by mutableStateOf<String?>(null)       // "dikte" | "canli": ilk kullanım paneli
+    var ipucuSonra: (() -> Unit)? = null
     var duzenleIndex by mutableStateOf(-1)          // düzenlenen mesajın sırası (-1: yok)
     var duzenleMetin by mutableStateOf("")
     var mesajMenusu by mutableStateOf(-1)           // eylem paneli açık olan mesajın sırası

@@ -3,6 +3,9 @@ package com.edith.asistan
 import android.Manifest
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.border
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.slideInHorizontally
@@ -64,7 +67,7 @@ private val IPUCLARI = listOf(
 fun KurulumEkrani(onIzin: (Array<String>) -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val bildirimAdimi = Build.VERSION.SDK_INT >= 33
-    val adimlar = remember { listOfNotNull("hos", "mik", if (bildirimAdimi) "bildirim" else null, "anahtar", "model") }
+    val adimlar = remember { listOfNotNull("hos", "tanitim", "mik", if (bildirimAdimi) "bildirim" else null, "asistan", "pil", "anahtar", "model") }
     var adim by remember { mutableIntStateOf(0) }
     var ileri by remember { mutableStateOf(true) }
     var anahtar by remember { mutableStateOf(Motor.ayarlar.apiKey) }
@@ -113,17 +116,41 @@ fun KurulumEkrani(onIzin: (Array<String>) -> Unit) {
                             Text("Hoş geldiniz", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 34.sp)
                             Aciklama("Birkaç kısa adımda E.D.I.T.H.'i hazırlayalım. Her adımda neye ihtiyaç duyduğumuzu ve nedenini söyleyeceğiz; istediğin adımı atlayabilirsin.")
                         }
+                        "tanitim" -> {
+                            Text("Mesaj kutusu", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
+                            Aciklama("Her şey tek çubukta. Üç düğmenin ne yaptığına bir göz at; çubuk burada yalnızca örnektir.")
+                            DemoKutu()
+                            Tanitim("1", "ai", "Model", "Cevabı hangi yapay zekânın vereceğini seçersin. Dinlerken bu düğme ✕ olur: dinlemeyi iptal eder, söylediklerin silinir, hiçbir şey gönderilmez.")
+                            Tanitim("2", "mik", "Mikrofon (yazıya dök)", "Konuşursun, söylediklerin kutuya yazılır. Hiçbir şey kendiliğinden gönderilmez. Kare düğme dinlemeyi durdurur; yazıyı düzenleyebilir ya da mikrofonla devam edebilirsin. Gönder'e basarsan dinleme biter ve mesaj hemen gider.")
+                            Tanitim("3", "canli", "Canlı konuşma", "Sohbet eder gibi konuşursun; 1–2 saniye sessiz kalınca mesaj kendiliğinden gönderilir. Kare düğme dinlemeyi durdurup mesajı hemen gönderir. “Hey edit” dediğinde de bu mod başlar.")
+                        }
+                        "asistan" -> {
+                            Simge("panel", Krem, Modifier.size(56.dp))
+                            Text("Varsayılan asistan", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
+                            Aciklama("Güç tuşuna ya da ana ekran hareketine uzun basınca, başka bir uygulamadayken bile E.D.I.T.H.'in küçük panelinin açılması için bunu seçmen gerekir.")
+                            if (Motor.asistanSecili) Durum("E.D.I.T.H. varsayılan asistan")
+                            else KurulumDugme("Asistan ayarını aç", true) { Motor.ayarAc("asistan") }
+                            Aciklama("Varsayılan asistan yapmak istemezsen sorun değil. Yine de başka uygulamaların üstünde kullanmak istersen Ayarlar → İzinler bölümünden “Diğer uygulamaların üzerinde göster” iznini verebilirsin. Bu izni kendiliğinden istemiyoruz.")
+                        }
+                        "pil" -> {
+                            Simge("uyan", Krem, Modifier.size(56.dp))
+                            Text("Pil kısıtlaması", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
+                            Aciklama("“Hey edit” ile arka planda dinlenmesi için sistemin uygulamayı uyutmaması gerekir; bu yüzden pil kısıtlamasından muaf tutulması önerilir. Yalnızca arka planda dinlemeyi açarsan önemlidir.")
+                            if (Motor.pilMuaf) Durum("Pil kısıtlaması yok")
+                            else KurulumDugme("Pil ayarını aç", false) { Motor.ayarAc("pil") }
+                            Aciklama("İzin vermek istemezsen sonradan Ayarlar → İzinler bölümünden değiştirebilirsin.")
+                        }
                         "mik" -> {
                             Simge("mik", Krem, Modifier.size(56.dp))
                             Text("Mikrofon", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
-                            Aciklama("Sesli komutları ve “hey edit” çağrısını duyabilmek için mikrofon izni gereklidir. Ses tanıma telefonda çalışır; konuşman kaydedilip bir yere gönderilmez.")
+                            Aciklama("Sesli komutları ve “hey edit” çağrısını duyabilmek için mikrofon izni gereklidir. Ses tanıma telefonda çalışır; konuşman kaydedilip bir yere gönderilmez. İzin vermezsen yalnızca yazarak kullanabilirsin; sonradan Ayarlar → İzinler bölümünden verebilirsin.")
                             if (Motor.izinMikrofon) Durum("Mikrofon izni verildi")
                             else KurulumDugme("Mikrofon iznini ver", true) { onIzin(arrayOf(Manifest.permission.RECORD_AUDIO)) }
                         }
                         "bildirim" -> {
                             Simge("uyan", Krem, Modifier.size(56.dp))
                             Text("Bildirimler", color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 30.sp)
-                            Aciklama("Uygulamadan çıktığında cevabın hazır olduğunu haber verebilmem için bildirim izni gereklidir. Yalnızca cevap geldiğinde bildirim gösterilir; başka bildirim gönderilmez.")
+                            Aciklama("Uygulamadan çıktığında cevabın hazır olduğunu haber verebilmem için bildirim izni gereklidir. Yalnızca cevap geldiğinde bildirim gösterilir; başka bildirim gönderilmez. İstemezsen sonradan Ayarlar → İzinler bölümünden değiştirebilirsin.")
                             if (Motor.izinBildirim) Durum("Bildirim izni verildi")
                             else KurulumDugme("Bildirimlere izin ver", true) { onIzin(arrayOf(Manifest.permission.POST_NOTIFICATIONS)) }
                         }
@@ -159,6 +186,46 @@ fun KurulumEkrani(onIzin: (Array<String>) -> Unit) {
                 if (son && !hazir) Text("Şimdilik atla", Modifier.clickable { Motor.kurulumBitti() }.padding(10.dp), color = SolukKrem, fontSize = 14.sp)
                 else if (!son && adim > 0) Text("Atla", Modifier.clickable { git(adim + 1) }.padding(10.dp), color = SolukKrem, fontSize = 14.sp)
             }
+        }
+    }
+}
+
+/** Tanıtım adımındaki örnek çubuk: yalnızca görseldir, dokunulunca bir şey yapmaz. */
+@Composable
+private fun DemoKutu() {
+    @Composable
+    fun Daire(simge: String, bg: Color, renk: Color, no: String, ic: Dp = 21.dp) {
+        Box(Modifier.size(46.dp)) {
+            Box(Modifier.align(Alignment.Center).size(42.dp).clip(CircleShape).background(bg).border(1.dp, YuzeyKenar, CircleShape), contentAlignment = Alignment.Center) {
+                Simge(simge, renk, Modifier.size(ic))
+            }
+            Box(Modifier.align(Alignment.TopEnd).size(18.dp).clip(CircleShape).background(Krem), contentAlignment = Alignment.Center) {
+                Text(no, color = Vurgu, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    val sekil = RoundedCornerShape(32.dp)
+    Row(
+        Modifier.fillMaxWidth().cam(sekil).padding(start = 6.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Daire("ai", YuzeyAcik, MetinKrem, "1")
+        Text("Mesaj yaz…", Modifier.weight(1f).padding(horizontal = 12.dp), color = MetinKoyu.copy(alpha = 0.55f), fontSize = 16.sp)
+        Daire("mik", YuzeyAcik, MetinKrem, "2")
+        Spacer(Modifier.width(6.dp))
+        Daire("canli", Vurgu, KremAcik, "3", 22.dp)
+    }
+}
+
+@Composable
+private fun Tanitim(no: String, simge: String, baslik: String, aciklama: String) {
+    Row(Modifier.fillMaxWidth().cam(RoundedCornerShape(20.dp)).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(30.dp).clip(CircleShape).background(Krem), contentAlignment = Alignment.Center) {
+            Text(no, color = Vurgu, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(baslik, color = MetinKrem, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(aciklama, color = SolukKrem, fontSize = 13.sp, lineHeight = 19.sp)
         }
     }
 }

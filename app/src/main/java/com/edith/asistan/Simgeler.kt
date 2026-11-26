@@ -85,6 +85,10 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                 p.lineTo(5f * u, 16f * u); p.lineTo(8f * u, 16f * u)
                 drawPath(p, renk, style = kalem)
             }
+            "kapat" -> {
+                drawLine(renk, Offset(6f * u, 6f * u), Offset(18f * u, 18f * u), 2.2f * u, StrokeCap.Round)
+                drawLine(renk, Offset(18f * u, 6f * u), Offset(6f * u, 18f * u), 2.2f * u, StrokeCap.Round)
+            }
             "durdur" -> drawRoundRect(renk, Offset(5f * u, 5f * u), Size(14f * u, 14f * u), CornerRadius(3f * u))
             "klavye" -> {
                 drawRoundRect(renk, Offset(2.5f * u, 6f * u), Size(19f * u, 12f * u), CornerRadius(2.5f * u), style = kalem)

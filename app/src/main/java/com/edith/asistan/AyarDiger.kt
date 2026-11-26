@@ -76,6 +76,10 @@ fun SayfaUyandirma(geri: () -> Unit) {
             Anahtarli(
                 "Hoparlör modu", "Edith'in kendi sesindeki uyandırma kelimesinin kendini tetiklemesini engeller.", hoparlor
             ) { hoparlor = it; a.hoparlorModu = it }
+            Dugme("Varsayılana döndür", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) {
+                a.cumleBasi = true; a.sesleKes = true; a.hoparlorModu = true
+                cumleBasi = true; sesleKes = true; hoparlor = true
+            }
         }
     }
 }
@@ -120,6 +124,10 @@ fun SayfaMikrofon(geri: () -> Unit) {
                 "Ortam sessizken ses tanıma durur, konuşma başlayınca kendiliğinden devreye girer. “Hey edit” zor algılanırsa kapat.",
                 kapi
             ) { kapi = it; a.sessizlikKapisi = it }
+            Dugme("Varsayılana döndür", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) {
+                a.soruSorunca = true; a.herCevapta = false; a.titresim = false; a.sessizlikKapisi = true
+                soru = true; her = false; titresim = false; kapi = true
+            }
         }
         Bolum("Süreler") {
             Satir("Takip zaman aşımı", "Cevaptan sonra konuşmanı bekleme süresi.") {
@@ -127,6 +135,10 @@ fun SayfaMikrofon(geri: () -> Unit) {
             }
             Satir("Sessizlik süresi", "Bu kadar sessizlikten sonra cümle bitmiş sayılır.") {
                 Adim(sessizlik, 0.5f..3f, 0.1f, " sn") { sessizlik = it; a.sessizlikSuresi = it }
+            }
+            Dugme("Varsayılana döndür", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) {
+                a.takipZamanAsimi = 8f; a.sessizlikSuresi = 1.2f
+                takip = 8f; sessizlik = 1.2f
             }
         }
         Bolum("Ses tanıma modelleri", "Türkçe ve İngilizce modeller telefonda çalışır; yalnızca ilk kurulumda internet gerekir.") {
@@ -269,6 +281,9 @@ fun SayfaPanel(geri: () -> Unit) {
         Bolum("Dinleme paneli", "Uyandırma kelimesi söylendiğinde uygulama açık değilse diğer uygulamaların üstünde küçük bir panel açılır.") {
             Anahtarli("Paneli göster", null, panel) { panel = it; a.panelGoster = it }
             Dugme("Paneli şimdi dene", DugmeTuru.BIRINCIL) { Panel.dene() }
+            Dugme("Varsayılana döndür", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) {
+                a.panelGoster = true; panel = true
+            }
         }
         Bolum(
             "Varsayılan dijital asistan",

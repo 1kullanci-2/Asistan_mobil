@@ -135,6 +135,10 @@ fun SayfaSes(geri: () -> Unit, git: (String) -> Unit) {
                 "Yazdığın mesajlara yalnızca yazılı cevap gelir; ses hakkın harcanmaz.",
                 sadeceSesli
             ) { sadeceSesli = it; a.sadeceSesliKomutta = it }
+            Dugme("Varsayılana döndür", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) {
+                a.siraylaDene = true; a.sadeceSesliKomutta = false; a.motorSirasi = listOf("gemini", "elevenlabs")
+                siraylaDene = true; sadeceSesli = false; sira = a.motorSirasi
+            }
         }
         Bolum("Ses motorları", "Yukarıdan aşağıya deneme sırası.") {
             sira.forEachIndexed { i, m ->
@@ -225,6 +229,7 @@ fun SayfaGemini(geri: () -> Unit) {
         Bolum("Seçili ses") {
             Satir(secili, "Yanıtların bu sesle okunur (Gemini TTS).") { Etiket("Gemini", "bilgi") }
             Dugme("Deneme cümlesini çal", DugmeTuru.BIRINCIL) { Motor.sesDene("gemini") }
+            Dugme("Varsayılana döndür (Kore)", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) { secili = "Kore"; a.geminiSes = "Kore" }
         }
     }
 }
@@ -371,6 +376,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.ElevenModeller() {
     }
     Bolum("Model kimliği") {
         Alan(secili, { secili = it; a.elevenModel = it }, "ör. eleven_flash_v2_5")
+        Dugme("Varsayılana döndür", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) {
+            secili = "eleven_flash_v2_5"; a.elevenModel = "eleven_flash_v2_5"
+        }
     }
 }
 
@@ -388,6 +396,10 @@ private fun androidx.compose.foundation.layout.ColumnScope.ElevenKarakter() {
             "Benzerlik", "Yüksek değer, seçili sesin özgün tınısına daha sıkı bağlı kalır.",
             benzerlik
         ) { benzerlik = it; a.elevenBenzerlik = it }
+        Dugme("Varsayılana döndür", DugmeTuru.IKINCIL, Modifier.fillMaxWidth()) {
+            a.elevenKararlilik = 0.5f; a.elevenBenzerlik = 0.75f
+            kararlilik = 0.5f; benzerlik = 0.75f
+        }
     }
     Bolum("Deneme") {
         val simdi by produceState(System.currentTimeMillis()) {

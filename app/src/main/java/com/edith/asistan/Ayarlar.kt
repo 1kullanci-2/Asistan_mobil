@@ -155,6 +155,14 @@ class Ayarlar(ctx: Context) {
         get() = bool("surekli_dinleme", false)
         set(v) = bool("surekli_dinleme", false, v)
 
+    /** İlk kullanım açıklama panelleri (mikrofon / canlı konuşma) bir kez gösterilir. */
+    var ipucuDikte: Boolean
+        get() = bool("ipucu_dikte", false)
+        set(v) = bool("ipucu_dikte", false, v)
+    var ipucuCanli: Boolean
+        get() = bool("ipucu_canli", false)
+        set(v) = bool("ipucu_canli", false, v)
+
     /** Güncelleme paneli bu sürüm için bir kez gösterilir. */
     var duyurulanSurum: String
         get() = sp.getString("duyurulan_surum", "") ?: ""
