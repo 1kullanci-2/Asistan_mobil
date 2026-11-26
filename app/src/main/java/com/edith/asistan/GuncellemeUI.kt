@@ -81,23 +81,20 @@ fun GuncellemePaneli() {
         ) {
             val sekil = RoundedCornerShape(26.dp)
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp).clip(sekil).background(Krem)
+                Modifier.fillMaxWidth().padding(horizontal = 40.dp).clip(sekil).background(Krem)
                     .border(1.dp, KremKoyu, sekil)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Yeni sürüm hazır", color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 20.sp)
-                Text("E.D.I.T.H. ${g.surum}", color = Vurgu, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
-                    SurumNotlari(g, MetinKoyu, SolukKoyu)
-                }
+                Text("Yeni sürüm var", color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 20.sp)
+                Text("Sürüm ${g.surum} hazır.", color = Vurgu, fontWeight = FontWeight.Medium, fontSize = 15.sp)
                 if (indiriyor) {
                     IlerlemeCubugu(Motor.guncelOran)
                     Text(Motor.guncelDurum, color = SolukKoyu, fontSize = 12.sp)
                 } else {
                     if (Motor.guncelDurum.isNotBlank()) Text(Motor.guncelDurum, color = SolukKoyu, fontSize = 12.sp)
-                    Text("Daha sonra Hakkında panelinden güncelleyebilirsiniz", color = SolukKoyu, fontSize = 12.sp, lineHeight = 16.sp)
+                    Text("İsterseniz daha sonra Ayarlar → Hakkında bölümünden de güncelleyebilirsiniz.", color = SolukKoyu, fontSize = 12.sp, lineHeight = 17.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Dugme("Daha sonra", DugmeTuru.IKINCIL, Modifier.weight(1f)) { Motor.guncellemePaneli = false }
                         Dugme("Güncelle", DugmeTuru.BIRINCIL, Modifier.weight(1f)) { Motor.guncelleIndir() }
@@ -135,7 +132,14 @@ fun SayfaHakkinda(geri: () -> Unit) {
             }
         }
         if (g != null && g.notlar.isNotEmpty()) {
-            Bolum("Değişiklikler") { SurumNotlari(g, MetinKoyu, SolukKoyu) }
+            Bolum("Değişiklikler") {
+                g.notlar.forEach { n ->
+                    AltKutu {
+                        Text(n.surum, color = Vurgu, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        n.maddeler.forEach { Text("•  $it", color = MetinKoyu, fontSize = 13.sp, lineHeight = 18.sp) }
+                    }
+                }
+            }
         }
     }
 }

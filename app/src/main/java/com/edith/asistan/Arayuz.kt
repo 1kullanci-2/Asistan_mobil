@@ -105,7 +105,7 @@ private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR
 }
 
 @Composable
-fun Uygulama(onMik: () -> Unit, onIzin: (Array<String>) -> Unit = {}) {
+fun Uygulama(onMik: (Boolean) -> Unit, onIzin: (Array<String>) -> Unit = {}) {
     Box(
         Modifier.fillMaxSize().background(Visne)
     ) {
@@ -123,6 +123,7 @@ fun Uygulama(onMik: () -> Unit, onIzin: (Array<String>) -> Unit = {}) {
             ModelPaneli()
             IslemPaneli()
             MesajMenusu()
+            MesajUyarisi()
             GuncellemePaneli()
         }
     }
@@ -232,11 +233,13 @@ fun YanPanel() {
                             containerColor = Krem
                         ) {
                             androidx.compose.material3.DropdownMenuItem(
-                                text = { Text("Ad değiştir", color = MetinKoyu) },
+                                text = { Text("Ad değiştir", color = MetinKoyu, fontFamily = FontFamily.Serif, fontSize = 16.sp) },
+                                leadingIcon = { Simge("kalem", MetinKoyu, Modifier.size(20.dp)) },
                                 onClick = { menuId = null; adDegisecek = sb; yeniAd = sb.baslik }
                             )
                             androidx.compose.material3.DropdownMenuItem(
-                                text = { Text("Sil", color = Hata) },
+                                text = { Text("Sil", color = Hata, fontFamily = FontFamily.Serif, fontSize = 16.sp) },
+                                leadingIcon = { Simge("cop", Hata, Modifier.size(20.dp)) },
                                 onClick = { menuId = null; silinecek = sb }
                             )
                         }
@@ -440,24 +443,87 @@ fun IslemPaneli() {
 }
 
 @Composable
-fun GirisCubugu(onMik: () -> Unit) {
+fun GirisCubugu(onMik: (Boolean) -> Unit) {
     var metin by remember { mutableStateOf("") }
+    var onEk by remember { mutableStateOf("") }   // dikte başlarken kutuda olan yazı
     val dinliyor = Motor.faz == Faz.KOMUT
+    val dikte = dinliyor && Motor.dikte
+    val canliDinleme = dinliyor && !Motor.dikte
     val bekliyor = Motor.faz == Faz.ISLE
     val duzenle = Motor.duzenleIndex >= 0
     LaunchedEffect(Motor.duzenleIndex) { if (Motor.duzenleIndex >= 0) metin = Motor.duzenleMetin }
-    // Sesle konuşurken söylenenler mesaj olarak değil, bu kutuya canlı yazılır
-    val gosterilen = if (dinliyor) Motor.canli else metin
+    // Dikte: söylenenler kutuya canlı yazılır ve kutuda kalır
+    LaunchedEffect(Motor.canli, dikte) {
+        if (dikte) metin = if (Motor.canli.isBlank()) onEk else (onEk.trimEnd() + " " + Motor.canli).trim()
+    }
+    // Canlı (otomatik gönderen) dinlemede söylenenler yalnızca kutuda gösterilir
+    val gosterilen = if (canliDinleme) Motor.canli else metin
     val yaziVar = metin.isNotBlank()
     val klavyeAcik = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-    val genis = klavyeAcik || gosterilen.isNotBlank()
+    val genis = klavyeAcik || gosterilen.isNotBlank() || dinliyor
     val sekil = RoundedCornerShape(if (genis) 30.dp else 34.dp)
 
-    /** Dinlemeyi bırakır; o ana kadar söylenen kutuda kalır, devamı elle yazılabilir. */
+    /** Dinlemeyi bırakır; söylenenler kutuda kalır, istenirse elle düzenlenir ya da mikrofonla devam edilir. */
     fun sesiDurdur() {
-        val t = Motor.canli.trim()
+        val t = if (canliDinleme) Motor.canli.trim() else metin
         Motor.dinlemeyiIptal()
-        if (t.isNotEmpty()) metin = t
+        metin = t
+    }
+
+    val butonlar: @Composable () -> Unit = {
+        val yay = androidx.compose.animation.core.spring<androidx.compose.ui.unit.Dp>(dampingRatio = 0.55f, stiffness = 280f)
+        // Soldaki düğme: mikrofon (dikte) ya da dikteyi durduran kare. Canlı dinleme ve bekleme sırasında sağdakine kayıp kaybolur.
+        val tek = canliDinleme || bekliyor
+        val solGen by androidx.compose.animation.core.animateDpAsState(if (tek) 0.dp else 44.dp, yay, label = "sol")
+        val aralik by androidx.compose.animation.core.animateDpAsState(if (tek) 0.dp else 8.dp, yay, label = "aralik")
+        if (solGen > 1.dp) {
+            Box(
+                Modifier.width(solGen.coerceAtLeast(0.dp)).height(44.dp).clip(CircleShape)
+                    .background(if (dikte) Vurgu else YuzeyAcik)
+                    .border(1.dp, YuzeyKenar, CircleShape)
+                    .clickable { if (dikte) sesiDurdur() else { onEk = metin; onMik(true) } },
+                contentAlignment = Alignment.Center
+            ) {
+                if (solGen > 28.dp) AnimatedContent(
+                    targetState = dikte,
+                    transitionSpec = { (fadeIn(tween(160)) + scaleIn(initialScale = 0.5f)) togetherWith (fadeOut(tween(100)) + scaleOut(targetScale = 0.5f)) },
+                    label = "sol-ikon"
+                ) { d -> Simge(if (d) "durdur" else "mik", if (d) KremAcik else MetinKrem, Modifier.size(if (d) 18.dp else 22.dp)) }
+            }
+            Spacer(Modifier.width(aralik.coerceAtLeast(0.dp)))
+        }
+        val sag = when {
+            bekliyor || canliDinleme -> 2      // kare: durdur (canlıda durdurup gönderir)
+            dikte || yaziVar -> 1              // gönder
+            else -> 0                          // canlı konuşma
+        }
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(if (sag == 1 && dikte) Yesil else Vurgu).clickable {
+                when {
+                    bekliyor -> Motor.durdur()
+                    canliDinleme -> {
+                        val t = Motor.canli.trim()
+                        Motor.dinlemeyiIptal()
+                        if (t.isNotEmpty()) Motor.gonder(t, sesli = true)
+                    }
+                    dikte -> {
+                        val t = metin.trim()
+                        Motor.dinlemeyiIptal()
+                        if (t.isNotEmpty()) { Motor.gonder(t, sesli = true); metin = "" }
+                    }
+                    duzenle -> if (yaziVar) { Motor.duzenleGonder(metin.trim()); metin = "" }
+                    yaziVar -> { Motor.gonder(metin, sesli = false); metin = "" }
+                    else -> onMik(false)
+                }
+            },
+            contentAlignment = Alignment.Center
+        ) {
+            AnimatedContent(
+                targetState = sag,
+                transitionSpec = { (fadeIn(tween(160)) + scaleIn(initialScale = 0.6f)) togetherWith (fadeOut(tween(120)) + scaleOut(targetScale = 0.6f)) },
+                label = "sag-ikon"
+            ) { d -> Simge(when (d) { 2 -> "durdur"; 1 -> "gonder"; else -> "canli" }, KremAcik, Modifier.size(if (d == 2) 18.dp else 24.dp)) }
+        }
     }
 
     Column {
@@ -466,7 +532,7 @@ fun GirisCubugu(onMik: () -> Unit) {
                 Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Mesaj düzenleniyor", Modifier.weight(1f), color = SolukKrem, fontSize = 13.sp)
+                Text("Mesaj düzenleniyor · sonrası silinecek", Modifier.weight(1f), color = SolukKrem, fontSize = 13.sp)
                 Text("Vazgeç", Modifier.clip(RoundedCornerShape(8.dp)).clickable { Motor.duzenleIptal(); metin = "" }.padding(6.dp), color = MetinKrem, fontSize = 13.sp)
             }
         }
@@ -476,14 +542,13 @@ fun GirisCubugu(onMik: () -> Unit) {
                 .animateContentSize(tween(180))
                 .padding(horizontal = 8.dp, vertical = 6.dp)
         ) {
-            val sagGenislik = if (dinliyor) 100.dp else 54.dp
             TextField(
                 value = gosterilen,
                 onValueChange = { if (!dinliyor) metin = it },
                 readOnly = dinliyor,
                 textStyle = androidx.compose.ui.text.TextStyle(fontSize = 17.sp),
                 modifier = Modifier.fillMaxWidth()
-                    .padding(start = if (genis) 0.dp else 92.dp, end = if (genis) 0.dp else sagGenislik, bottom = if (genis) 54.dp else 0.dp)
+                    .padding(start = if (genis) 0.dp else 92.dp, end = if (genis) 0.dp else 104.dp, bottom = if (genis) 54.dp else 0.dp)
                     .heightIn(min = if (genis) 64.dp else 52.dp)
                     .onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) sesiDurdur() },
                 placeholder = { Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = MetinKoyu.copy(alpha = 0.6f), fontSize = 17.sp) },
@@ -498,52 +563,51 @@ fun GirisCubugu(onMik: () -> Unit) {
                     unfocusedTextColor = MetinKoyu
                 )
             )
-            ModelKutusu(Modifier.align(if (genis) Alignment.BottomStart else Alignment.CenterStart).padding(start = 4.dp, bottom = if (genis) 8.dp else 0.dp))
-            Row(
-                Modifier.align(if (genis) Alignment.BottomEnd else Alignment.CenterEnd),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Mikrofon düğmesi bir damla gibi ikiye bölünür: [durdur] [gönder]
-                val yay = androidx.compose.animation.core.spring<androidx.compose.ui.unit.Dp>(dampingRatio = 0.5f, stiffness = 260f)
-                val durdurGen by androidx.compose.animation.core.animateDpAsState(if (dinliyor) 46.dp else 0.dp, yay, label = "bol")
-                val aralik by androidx.compose.animation.core.animateDpAsState(if (dinliyor) 8.dp else 0.dp, yay, label = "aralik")
-                if (durdurGen > 1.dp) {
-                    Box(
-                        Modifier.width(durdurGen.coerceAtLeast(0.dp)).height(46.dp).clip(CircleShape).background(Vurgu)
-                            .clickable { sesiDurdur() },
-                        contentAlignment = Alignment.Center
-                    ) { if (durdurGen > 30.dp) Simge("durdur", KremAcik, Modifier.size(18.dp)) }
-                    Spacer(Modifier.width(aralik.coerceAtLeast(0.dp)))
-                }
-                val durum = if (bekliyor) 2 else if (dinliyor || yaziVar) 1 else 0
-                Box(
-                    Modifier.size(46.dp).clip(CircleShape).background(if (dinliyor) Yesil else Vurgu).clickable {
-                        when {
-                            bekliyor -> Motor.durdur()
-                            dinliyor -> {
-                                val t = Motor.canli.trim()
-                                Motor.dinlemeyiIptal()
-                                if (t.isNotEmpty()) Motor.gonder(t, sesli = true)
-                            }
-                            duzenle -> if (yaziVar) { Motor.duzenleGonder(metin.trim()); metin = "" }
-                            yaziVar -> { Motor.gonder(metin, sesli = false); metin = "" }
-                            else -> onMik()
+            if (genis) {
+                // Alt sıra: model kutusu · dinleme dalgası · düğmeler
+                Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ModelKutusu(Modifier.padding(start = 4.dp))
+                    Box(Modifier.weight(1f).height(36.dp).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                        androidx.compose.animation.AnimatedVisibility(visible = dinliyor, enter = fadeIn(tween(200)), exit = fadeOut(tween(150))) {
+                            Dalga(Modifier.fillMaxWidth().height(32.dp))
                         }
-                    },
-                    contentAlignment = Alignment.Center
-                ) {
-                    AnimatedContent(
-                        targetState = durum,
-                        transitionSpec = {
-                            (fadeIn(tween(160)) + scaleIn(initialScale = 0.6f)) togetherWith
-                                (fadeOut(tween(120)) + scaleOut(targetScale = 0.6f))
-                        },
-                        label = "gonder"
-                    ) { d -> Simge(when (d) { 2 -> "durdur"; 1 -> "gonder"; else -> "mik" }, KremAcik, Modifier.size(if (d == 2) 20.dp else 24.dp)) }
+                    }
+                    butonlar()
                 }
+            } else {
+                ModelKutusu(Modifier.align(Alignment.CenterStart).padding(start = 4.dp))
+                Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) { butonlar() }
             }
         }
     }
+}
+
+/** Silme/düzenleme sonrasındaki mesajlar da gideceği için kullanıcıyı uyarır. */
+@Composable
+fun MesajUyarisi() {
+    val u = Motor.mesajUyari ?: return
+    val sonraki = Motor.mesajlar.size - u.second - 1
+    val sil = u.first == "sil"
+    AlertDialog(
+        onDismissRequest = { Motor.mesajUyari = null },
+        containerColor = Krem,
+        title = { Text(if (sil) "Mesaj silinsin mi?" else "Mesaj düzenlensin mi?", color = MetinKoyu, fontFamily = FontFamily.Serif) },
+        text = {
+            Text(
+                (if (sil) "Bu mesaj" else "Bu mesajdan sonrası") + (if (sil) " ve " else " silinecek: ") +
+                    "ondan sonraki $sonraki mesaj" + (if (sil) " da silinecek." else ". Düzenlediğini gönderince cevap yeniden üretilir."),
+                color = SolukKoyu, fontSize = 14.sp, lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            Text(
+                if (sil) "Sil" else "Düzenle",
+                Modifier.clickable { Motor.mesajUyari = null; if (sil) Motor.mesajSil(u.second) else Motor.duzenleBaslat(u.second) }.padding(12.dp),
+                color = if (sil) Hata else Vurgu, fontWeight = FontWeight.SemiBold
+            )
+        },
+        dismissButton = { Text("Vazgeç", Modifier.clickable { Motor.mesajUyari = null }.padding(12.dp), color = SolukKoyu) }
+    )
 }
 
 /** Mesaja dokununca alttan açılan eylem paneli: kopyala, düzenle (yalnızca kendi mesajların), sil. */
@@ -567,17 +631,21 @@ fun MesajMenusu() {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 @Composable
-                fun Satir(yazi: String, renk: Color, tikla: () -> Unit) {
+                fun Satir(simge: String, yazi: String, renk: Color, tikla: () -> Unit) {
                     val k = RoundedCornerShape(16.dp)
-                    Text(
-                        yazi, Modifier.fillMaxWidth().clip(k).background(Color.White).border(1.dp, KremKoyu, k)
+                    Row(
+                        Modifier.fillMaxWidth().clip(k).background(Color.White).border(1.dp, KremKoyu, k)
                             .clickable { Motor.mesajMenusu = -1; tikla() }.padding(horizontal = 16.dp, vertical = 14.dp),
-                        color = renk, fontSize = 16.sp
-                    )
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Simge(simge, renk, Modifier.size(22.dp))
+                        Spacer(Modifier.width(14.dp))
+                        Text(yazi, color = renk, fontSize = 16.sp, fontFamily = FontFamily.Serif)
+                    }
                 }
-                Satir("Kopyala", MetinKoyu) { m?.let { pano.setText(androidx.compose.ui.text.AnnotatedString(it.metin)) } }
-                if (m?.kullanici == true) Satir("Düzenle", MetinKoyu) { Motor.duzenleBaslat(i) }
-                Satir("Sil", Hata) { Motor.mesajSil(i) }
+                Satir("kopya", "Kopyala", MetinKoyu) { m?.let { pano.setText(androidx.compose.ui.text.AnnotatedString(it.metin)) } }
+                if (m?.kullanici == true) Satir("kalem", "Düzenle", MetinKoyu) { Motor.duzenleIste(i) }
+                Satir("cop", "Sil", Hata) { Motor.mesajSilIste(i) }
             }
         }
     }

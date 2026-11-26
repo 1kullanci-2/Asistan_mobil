@@ -43,8 +43,8 @@ class MainActivity : ComponentActivity() {
         ContextCompat.checkSelfPermission(this, izin) == PackageManager.PERMISSION_GRANTED
 
     /** Sohbetteki mikrofon düğmesi: izin varsa hemen dinlemeye başlar. */
-    private fun mikrofonDugmesi() {
-        if (verildi(Manifest.permission.RECORD_AUDIO)) Motor.sesliKomut()
+    private fun mikrofonDugmesi(dikte: Boolean) {
+        if (verildi(Manifest.permission.RECORD_AUDIO)) { if (dikte) Motor.dikteBaslat() else Motor.sesliKomut() }
         else izinIstegi.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
     }
 

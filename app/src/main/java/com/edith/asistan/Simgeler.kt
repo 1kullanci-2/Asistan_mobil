@@ -65,6 +65,26 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                 val p = Path(); p.moveTo(6f * u, 9f * u); p.lineTo(12f * u, 15f * u); p.lineTo(18f * u, 9f * u)
                 drawPath(p, renk, style = kalem)
             }
+            "canli" -> { // beş çubuk: canlı konuşma
+                val yuk = listOf(6f, 12f, 17f, 12f, 6f)
+                yuk.forEachIndexed { i, h ->
+                    val x = (3f + i * 4.5f) * u
+                    drawLine(renk, Offset(x, (12f - h / 2) * u), Offset(x, (12f + h / 2) * u), 2.6f * u, StrokeCap.Round)
+                }
+            }
+            "kalem" -> {
+                val p = Path()
+                p.moveTo(4f * u, 20f * u); p.lineTo(5f * u, 15f * u); p.lineTo(15f * u, 5f * u)
+                p.lineTo(19f * u, 9f * u); p.lineTo(9f * u, 19f * u); p.close()
+                drawPath(p, renk, style = kalem)
+                drawLine(renk, Offset(13f * u, 7f * u), Offset(17f * u, 11f * u), 1.9f * u, StrokeCap.Round)
+            }
+            "kopya" -> {
+                drawRoundRect(renk, Offset(8f * u, 8f * u), Size(12f * u, 12f * u), CornerRadius(2.5f * u), style = kalem)
+                val p = Path(); p.moveTo(16f * u, 8f * u); p.lineTo(16f * u, 5f * u); p.lineTo(5f * u, 5f * u)
+                p.lineTo(5f * u, 16f * u); p.lineTo(8f * u, 16f * u)
+                drawPath(p, renk, style = kalem)
+            }
             "durdur" -> drawRoundRect(renk, Offset(5f * u, 5f * u), Size(14f * u, 14f * u), CornerRadius(3f * u))
             "klavye" -> {
                 drawRoundRect(renk, Offset(2.5f * u, 6f * u), Size(19f * u, 12f * u), CornerRadius(2.5f * u), style = kalem)

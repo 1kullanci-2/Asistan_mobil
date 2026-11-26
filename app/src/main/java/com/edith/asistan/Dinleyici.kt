@@ -71,7 +71,14 @@ class Dinleyici(
     private var kapiAcik = false
     private var sessizBlok = 0
 
-    fun takipIste() = takipIstegi.set(true)
+    private val dikteSonraki = AtomicBoolean(false)
+    @Volatile private var dikteMod = false
+
+    /** [dikte] true ise sessizlikte göndermez: söylenenler yazıya dökülür, durdurulana kadar dinler. */
+    fun takipIste(dikte: Boolean = false) {
+        dikteSonraki.set(dikte)
+        takipIstegi.set(true)
+    }
 
     /** Başlamış ya da bekleyen komut dinlemesini bırakır (ör. kullanıcı yazmaya başladı). */
     fun iptalIste() {
@@ -181,7 +188,7 @@ class Dinleyici(
         if (takipIstegi.compareAndSet(true, false)) {
             post { geri.takipBasladi() }
             halka.clear()
-            return komuta(0, Motor.ayarlar.takipZamanAsimi.toDouble())
+            return komuta(0, Motor.ayarlar.takipZamanAsimi.toDouble(), dikteSonraki.get())
         }
         if (Motor.ayarlar.sessizlikKapisi && !kapi(rms)) return
         bekle(veri, false, false)
@@ -274,7 +281,8 @@ class Dinleyici(
         }
     }
 
-    private fun komuta(ilkNo: Int, asimSn: Double) {
+    private fun komuta(ilkNo: Int, asimSn: Double, dik: Boolean = false) {
+        dikteMod = dik
         runCatching { trR?.close() }
         runCatching { enR?.close() }
         trR = yeniTr()
@@ -311,6 +319,7 @@ class Dinleyici(
             sonSoz = t
             post { geri.canli(g) }
         }
+        if (dikteMod) return   // dikte: sessizlik gönderme ya da zaman aşımı yok; kullanıcı durdurur
         if (g.isNotEmpty() && t - sonSoz > Motor.ayarlar.sessizlikSuresi) {
             val kalan = if (son) "" else runCatching { JSONObject(r.finalResult).optString("text") }.getOrDefault("")
             val k = Uyandirma.basTemizle((biriken + " " + kalan).trim())

@@ -87,6 +87,10 @@ object Motor : DinleyiciGeri {
     var guncelKontrolHata by mutableStateOf<String?>(null)
     var guncelKontrolEdiliyor by mutableStateOf(false)
     private var guncelIndirmeId = -1L
+    var dikte by mutableStateOf(false)               // dinleme dikte modunda (sessizlikte göndermez)
+    private var dikteBekliyor = false
+    private var bekleyenDikte = false
+    var mesajUyari by mutableStateOf<Pair<String, Int>?>(null)   // ("sil"|"duzenle", mesaj sırası) onayı
     var duzenleIndex by mutableStateOf(-1)          // düzenlenen mesajın sırası (-1: yok)
     var duzenleMetin by mutableStateOf("")
     var mesajMenusu by mutableStateOf(-1)           // eylem paneli açık olan mesajın sırası
@@ -242,6 +246,7 @@ object Motor : DinleyiciGeri {
 
     fun fazAyarla(f: Faz) {
         faz = f
+        if (f != Faz.KOMUT) dikte = false
         Panel.guncelle()
     }
 
@@ -312,7 +317,8 @@ object Motor : DinleyiciGeri {
         d.start()
         if (bekleyenTakip) {
             bekleyenTakip = false
-            d.takipIste()
+            d.takipIste(bekleyenDikte)
+            bekleyenDikte = false
         }
     }
 
@@ -329,8 +335,23 @@ object Motor : DinleyiciGeri {
     }
 
     /** Sohbet ekranındaki mikrofon düğmesi: "hey edit" beklemeden hemen komut dinler. */
+    /** Mikrofon düğmesi: söylenenleri mesaj kutusuna yazar; sessizlikte göndermez. */
+    fun dikteBaslat() {
+        panelCevap = false
+        if (faz == Faz.ISLE || faz == Faz.KONUS) {
+            aktifIsiDurdur(); Ses.kes(); akanMetin = ""; fazAyarla(Faz.BOS)
+        }
+        dikteBekliyor = true
+        if (!mikAcik) {
+            bekleyenTakip = true
+            bekleyenDikte = true
+            mikrofonAc()
+        } else dinleyici?.takipIste(true)
+    }
+
     fun sesliKomut() {
         panelCevap = false
+        dikteBekliyor = false
         if (faz == Faz.ISLE || faz == Faz.KONUS) {
             aktifIsiDurdur()
             Ses.kes()
@@ -446,6 +467,7 @@ object Motor : DinleyiciGeri {
     // ── Dinleyici geri bildirimleri (ana iş parçacığı)
 
     override fun uyandi(kes: Boolean) {
+        dikte = false
         if (kes) {
             aktifIsiDurdur()
             Ses.kes()
@@ -457,6 +479,8 @@ object Motor : DinleyiciGeri {
 
     override fun takipBasladi() {
         titret()
+        dikte = dikteBekliyor
+        dikteBekliyor = false
         canli = ""
         fazAyarla(Faz.KOMUT)
     }
@@ -569,13 +593,24 @@ object Motor : DinleyiciGeri {
     }
 
     // ── Mesaj eylemleri: sil / düzenle (kopyalama arayüzde)
+    /** Mesaj ve ondan sonraki her şey silinir (sonraki konuşma ona dayandığı için). */
     fun mesajSil(i: Int) {
         val k = aktif ?: return
-        if (i !in k.mesajlar.indices || i !in mesajlar.indices) return
-        k.mesajlar.removeAt(i)
-        mesajlar.removeAt(i)
-        k.ozet = ""; k.ozetKapsam = 0       // özet eski geçmişe dayanıyordu
+        if (i !in k.mesajlar.indices) return
+        if (faz == Faz.ISLE || faz == Faz.KONUS) { aktifIsiDurdur(); Ses.kes() }
+        while (k.mesajlar.size > i) k.mesajlar.removeAt(k.mesajlar.lastIndex)
+        while (mesajlar.size > i) mesajlar.removeAt(mesajlar.lastIndex)
+        k.ozet = ""; k.ozetKapsam = 0
         kaydetKayit(k)
+    }
+
+    /** Silme/düzenleme sonrası mesajlar da gideceği için önce uyarır; sonrasında mesaj yoksa doğrudan yapar. */
+    fun mesajSilIste(i: Int) {
+        if (mesajlar.size - i > 1) mesajUyari = "sil" to i else mesajSil(i)
+    }
+
+    fun duzenleIste(i: Int) {
+        if (mesajlar.size - i > 1) mesajUyari = "duzenle" to i else duzenleBaslat(i)
     }
 
     fun duzenleBaslat(i: Int) {
