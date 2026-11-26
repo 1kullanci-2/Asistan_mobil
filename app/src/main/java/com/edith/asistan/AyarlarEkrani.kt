@@ -74,8 +74,7 @@ private fun AnaAyarlar(kapat: () -> Unit, git: (String) -> Unit) {
             }
         }
         Text(
-            "E.D.I.T.H. 0.3  ·  ayarlar yalnızca bu telefonda saklanır" +
-                if (a.apiKey.isBlank()) "\nGemini API anahtarı henüz girilmemiş." else "",
+            (if (a.apiKey.isBlank()) "Gemini API anahtarı henüz girilmemiş.\n" else "") + "Ayarlar yalnızca bu telefonda saklanır.",
             Modifier.padding(horizontal = 24.dp), color = SolukKrem, fontSize = 12.sp, lineHeight = 17.sp
         )
     }

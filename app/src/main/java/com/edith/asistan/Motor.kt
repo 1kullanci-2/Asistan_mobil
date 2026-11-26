@@ -87,6 +87,7 @@ object Motor : DinleyiciGeri {
     var guncelKontrolHata by mutableStateOf<String?>(null)
     var guncelKontrolEdiliyor by mutableStateOf(false)
     private var guncelIndirmeId = -1L
+    var acilisGoruldu = false                        // açılış animasyonu bu işlemde oynadı mı
     var dikte by mutableStateOf(false)               // dinleme dikte modunda (sessizlikte göndermez)
     private var dikteBekliyor = false
     private var bekleyenDikte = false

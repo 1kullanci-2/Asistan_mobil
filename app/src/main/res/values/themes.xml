@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Edith" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/edith_visne</item>
+        <item name="android:windowBackground">@drawable/acilis_zemin</item>
         <item name="android:colorBackground">@color/edith_visne</item>
     </style>
 

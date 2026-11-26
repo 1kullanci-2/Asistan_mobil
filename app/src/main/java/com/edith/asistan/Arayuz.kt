@@ -105,6 +105,43 @@ private fun karsilama(): String = when (Calendar.getInstance().get(Calendar.HOUR
     else -> "İyi geceler"
 }
 
+/** Açılış: sistemin gösterdiği simgeli zeminle aynı görünümden başlar; çubuklar sırayla nefes alır, sonra uygulamaya geçilir. */
+@Composable
+fun AcilisAnimasyonu() {
+    var bitti by remember { mutableStateOf(Motor.acilisGoruldu) }
+    if (bitti) return
+    val dalga = remember { androidx.compose.animation.core.Animatable(0f) }
+    val sol = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(Unit) {
+        dalga.animateTo(1f, tween(950, easing = androidx.compose.animation.core.LinearEasing))
+        sol.animateTo(0f, tween(300))
+        Motor.acilisGoruldu = true
+        bitti = true
+    }
+    Box(Modifier.fillMaxSize().alpha(sol.value).background(Visne), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(
+            Modifier.size(120.dp).graphicsLayer {
+                val k = 1f + (1f - sol.value) * 0.14f
+                scaleX = k; scaleY = k
+            }
+        ) {
+            val u = size.width / 108f
+            drawRoundRect(Color(0xFFF7ECF0), Offset(6f * u, 6f * u), androidx.compose.ui.geometry.Size(96f * u, 96f * u),
+                androidx.compose.ui.geometry.CornerRadius(24f * u))
+            val yuk = listOf(22f, 46f, 66f, 40f, 16f)
+            yuk.forEachIndexed { i, h ->
+                val t = (dalga.value * 1.6f - i * 0.12f).coerceIn(0f, 1f)
+                val k = 1f - 0.5f * kotlin.math.sin(Math.PI.toFloat() * t)
+                val boy = h * k * u
+                drawRoundRect(
+                    Color(0xFF8C4A63), Offset((20f + i * 16f) * u, 54f * u - boy / 2),
+                    androidx.compose.ui.geometry.Size(8f * u, boy), androidx.compose.ui.geometry.CornerRadius(4f * u)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun Uygulama(onMik: (Boolean) -> Unit, onIzin: (Array<String>) -> Unit = {}) {
     Box(
@@ -128,6 +165,7 @@ fun Uygulama(onMik: (Boolean) -> Unit, onIzin: (Array<String>) -> Unit = {}) {
             GuncellemePaneli()
             IpucuPaneli()
         }
+        AcilisAnimasyonu()
     }
 }
 
