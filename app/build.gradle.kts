@@ -20,10 +20,14 @@ android {
     // Sabit imza: her derleme aynı anahtarla imzalanır, böylece üstüne kurulunca ayarlar silinmez.
     signingConfigs {
         getByName("debug") {
-            storeFile = file("edith-imza.jks")
-            storePassword = "edith2026"
-            keyAlias = "edith"
-            keyPassword = "edith2026"
+            // Anahtar repoda durmaz: GitHub Actions gizli değişkenlerinden gelir. Yerelde ortam değişkeni yoksa Android'in kendi debug anahtarı kullanılır.
+            val yol = System.getenv("EDITH_KEYSTORE")
+            if (yol != null) {
+                storeFile = file(yol)
+                storePassword = System.getenv("EDITH_KEYSTORE_SIFRE")
+                keyAlias = System.getenv("EDITH_KEY_ALIAS") ?: "edith"
+                keyPassword = System.getenv("EDITH_KEYSTORE_SIFRE")
+            }
         }
     }
     buildTypes {

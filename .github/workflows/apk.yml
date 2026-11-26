@@ -22,6 +22,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
+      - name: İmza anahtarını hazırla
+        env:
+          KEYSTORE_B64: ${{ secrets.EDITH_KEYSTORE_BASE64 }}
+          KEYSTORE_SIFRE: ${{ secrets.EDITH_KEYSTORE_SIFRE }}
+          KEY_ALIAS: ${{ secrets.EDITH_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_SIFRE" ]; then
+            echo "::error::GitHub gizli değişkenleri eksik: EDITH_KEYSTORE_BASE64 ve EDITH_KEYSTORE_SIFRE tanımlı olmalı."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/edith.jks"
+          echo "EDITH_KEYSTORE=$RUNNER_TEMP/edith.jks" >> "$GITHUB_ENV"
+          echo "EDITH_KEYSTORE_SIFRE=$KEYSTORE_SIFRE" >> "$GITHUB_ENV"
+          echo "EDITH_KEY_ALIAS=${KEY_ALIAS:-edith}" >> "$GITHUB_ENV"
       - name: Derle
         run: |
           set -o pipefail
