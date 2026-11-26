@@ -479,7 +479,7 @@ fun ModelDugmesi(dinliyor: Boolean, iptal: () -> Unit) {
                 targetState = dinliyor,
                 transitionSpec = { (fadeIn(tween(160)) + scaleIn(initialScale = 0.5f)) togetherWith (fadeOut(tween(100)) + scaleOut(targetScale = 0.5f)) },
                 label = "model-ikon"
-            ) { d -> Simge(if (d) "kapat" else "ai", MetinKrem, Modifier.size(if (d) 14.dp else 20.dp)) }
+            ) { d -> Simge(if (d) "kapat" else "model", MetinKrem, Modifier.size(if (d) 14.dp else 22.dp)) }
         }
     }
 }
@@ -504,6 +504,7 @@ fun GirisCubugu(onMik: (Boolean) -> Unit) {
     val klavyeAcik = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val genis = klavyeAcik || gosterilen.isNotBlank() || dinliyor
     val sekil = RoundedCornerShape(if (genis) 28.dp else 32.dp)
+    val tekDugme = canliDinleme || bekliyor
     val odak = remember { androidx.compose.ui.focus.FocusRequester() }
 
     /** Dinlemeyi bırakır; söylenenler kutuda kalır, istenirse elle düzenlenir ya da mikrofonla devam edilir. */
@@ -593,7 +594,7 @@ fun GirisCubugu(onMik: (Boolean) -> Unit) {
             maxLines = if (genis) 6 else 1,
             modifier = mod.focusRequester(odak).onFocusChanged { if (it.isFocused && Motor.faz == Faz.KOMUT) sesiDurdur() },
             decorationBox = { ic ->
-                Box(Modifier.fillMaxWidth().heightIn(min = 42.dp), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 42.dp).padding(vertical = if (genis) 8.dp else 0.dp), contentAlignment = Alignment.CenterStart) {
                     if (gosterilen.isEmpty()) Text(if (dinliyor) "Dinleniyor…" else "Mesaj yaz…", color = MetinKoyu.copy(alpha = 0.55f), fontSize = 17.sp)
                     ic()
                 }
@@ -611,30 +612,38 @@ fun GirisCubugu(onMik: (Boolean) -> Unit) {
                 Text("Vazgeç", Modifier.clip(RoundedCornerShape(8.dp)).clickable { Motor.duzenleIptal(); metin = "" }.padding(6.dp), color = MetinKrem, fontSize = 13.sp)
             }
         }
-        Column(
+        // Alan her iki düzende de Box'ın ilk çocuğudur: yer değiştirmediği için odak ve klavye korunur.
+        Box(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
                 .cam(sekil)
                 .animateContentSize(tween(180))
-                .padding(start = if (genis) 16.dp else 18.dp, end = 5.dp, top = if (genis) 8.dp else 4.dp, bottom = 5.dp)
+                .padding(start = 5.dp, end = 5.dp, top = 5.dp, bottom = 5.dp)
         ) {
+            alan(
+                Modifier.fillMaxWidth().padding(
+                    start = if (genis) 13.dp else 52.dp,
+                    end = if (genis) 8.dp else if (tekDugme) 50.dp else 100.dp,
+                    top = if (genis) 4.dp else 0.dp,
+                    bottom = if (genis) 52.dp else 0.dp
+                ).align(Alignment.TopStart)
+            )
+            Box(Modifier.align(if (genis) Alignment.BottomStart else Alignment.CenterStart)) {
+                ModelDugmesi(dinliyor) { sesiIptalEt() }
+            }
             if (genis) {
-                alan(Modifier.fillMaxWidth().padding(end = 11.dp, top = 4.dp, bottom = 4.dp))
-                // Alt sıra: model düğmesi · dinleme dalgası · düğmeler
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    ModelDugmesi(dinliyor) { sesiIptalEt() }
-                    Box(Modifier.weight(1f).height(36.dp).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                        androidx.compose.animation.AnimatedVisibility(visible = dinliyor, enter = fadeIn(tween(200)), exit = fadeOut(tween(150))) {
-                            Dalga(Modifier.fillMaxWidth().height(32.dp))
-                        }
+                Box(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 52.dp, end = 104.dp).height(42.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.animation.AnimatedVisibility(visible = dinliyor, enter = fadeIn(tween(200)), exit = fadeOut(tween(150))) {
+                        Dalga(Modifier.fillMaxWidth().height(32.dp))
                     }
-                    butonlar()
-                }
-            } else {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    alan(Modifier.weight(1f))
-                    butonlar()
                 }
             }
+            Row(
+                Modifier.align(if (genis) Alignment.BottomEnd else Alignment.CenterEnd),
+                verticalAlignment = Alignment.CenterVertically
+            ) { butonlar() }
         }
     }
 }

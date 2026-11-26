@@ -137,7 +137,7 @@ fun SayfaHakkinda(geri: () -> Unit) {
             Bolum("Değişiklikler") {
                 g.notlar.forEach { n ->
                     AltKutu {
-                        Text(n.surum, color = Vurgu, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(n.surum + if (n.surum == BuildConfig.VERSION_NAME) "  ·  yüklü" else "", color = Vurgu, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         n.maddeler.forEach { Text("•  $it", color = MetinKoyu, fontSize = 13.sp, lineHeight = 18.sp) }
                     }
                 }

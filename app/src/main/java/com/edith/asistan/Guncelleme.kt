@@ -68,7 +68,6 @@ object Guncelleme {
     /** Sürüm gövdesindeki "## 0.3.N" başlıklarını ve altındaki "- madde" satırlarını okur; yüklü sürümün 2 öncesinden itibaren olanları döndürür. */
     private fun notlariAyir(body: String): List<SurumNotu> {
         fun no(s: String) = s.substringAfterLast('.').toIntOrNull() ?: 0
-        val yuklu = no(BuildConfig.VERSION_NAME)
         val liste = mutableListOf<SurumNotu>()
         var ad: String? = null
         var maddeler = mutableListOf<String>()
@@ -81,7 +80,7 @@ object Guncelleme {
             } else if (ad != null && satir.startsWith("- ")) maddeler.add(satir.removePrefix("- ").trim())
         }
         bitir()
-        return liste.filter { no(it.surum) >= yuklu - 2 }.sortedByDescending { no(it.surum) }
+        return liste.sortedByDescending { no(it.surum) }   // sürüm geçmişi: yayındaki tüm kayıtlar
     }
 
     private fun yeniSurum(uzak: String, yerel: String): Boolean {
