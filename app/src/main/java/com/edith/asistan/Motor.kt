@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -88,6 +89,8 @@ object Motor : DinleyiciGeri {
     var guncelKontrolEdiliyor by mutableStateOf(false)
     private var guncelIndirmeId = -1L
     var acilisGoruldu = false                        // açılış animasyonu bu işlemde oynadı mı
+    var okunanMesaj by mutableStateOf(-1)            // yeniden okutulan mesajın sırası; -1: canlı cevap
+    private var tekrarIsi: Job? = null
     var dikte by mutableStateOf(false)               // dinleme dikte modunda (sessizlikte göndermez)
     private var dikteBekliyor = false
     private var bekleyenDikte = false
@@ -446,6 +449,57 @@ object Motor : DinleyiciGeri {
         }
     }
 
+    /** Okunan cevabın duraklat düğmesi: ses durur ve bu sohbetin sonraki cevapları sessiz kalır. */
+    fun sesDuraklat() {
+        sesKapaliSohbetler.add(aktifId ?: "")
+        tekrarIsi?.cancel()
+        Ses.kes()
+        if (faz == Faz.KONUS) fazAyarla(Faz.BOS)
+        okunanMesaj = -1
+    }
+
+    /** Bir mesajın hoparlörüne dokunma: o mesaj yeniden seslendirilir, sonraki cevaplar sesli olur. */
+    fun mesajiOku(i: Int) {
+        val m = mesajlar.getOrNull(i) ?: return
+        if (m.kullanici || m.not || m.metin.isBlank()) return
+        val k = aktifId ?: ""
+        sesKapaliSohbetler.remove(k)
+        aktifId?.let { sessiz.remove(it) }
+        if (faz == Faz.ISLE) return   // cevap geliyor: yalnızca ses açıldı, sonraki parçalar okunur
+        tekrarIsi?.cancel()
+        Ses.kes()
+        okunanMesaj = i
+        tekrarIsi = scope.launch {
+            try {
+                val parcalar = mutableListOf<String>()
+                var kalan = m.metin
+                while (kalan.isNotBlank()) {
+                    val bul = if (kalan.length > 250) cumleSonu.find(kalan, 250) else null
+                    if (bul == null) { parcalar.add(kalan); break }
+                    parcalar.add(kalan.substring(0, bul.range.last + 1))
+                    kalan = kalan.substring(bul.range.last + 1)
+                }
+                var siradaki = async(Dispatchers.IO) { Ses.sentez(ayarlar, parcalar.first()) }
+                for (n in parcalar.indices) {
+                    val pcm = siradaki.await()
+                    if (n + 1 < parcalar.size) { val c = parcalar[n + 1]; siradaki = async(Dispatchers.IO) { Ses.sentez(ayarlar, c) } }
+                    if (pcm != null) {
+                        if (faz != Faz.KONUS) fazAyarla(Faz.KONUS)
+                        Ses.cal(pcm)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                UygulamaLog.kaydet(ctx, "Mesajı okuma", e)
+                hata = "Ses üretilemedi: ${UygulamaLog.kullaniciMesaji(e)}"
+            } finally {
+                if (okunanMesaj == i) okunanMesaj = -1
+                if (faz == Faz.KONUS) fazAyarla(Faz.BOS)
+            }
+        }
+    }
+
     /** Gönder düğmesi bekleme sırasında kare (durdur) olur: istek iptal edilir, yeni mesaj yazılabilir. */
     fun durdur() {
         aktifIsiDurdur()
@@ -456,6 +510,7 @@ object Motor : DinleyiciGeri {
     }
 
     private fun aktifIsiDurdur() {
+        tekrarIsi?.cancel()
         aktifId?.let { isler[it]?.cancel() }
     }
 
@@ -710,6 +765,7 @@ object Motor : DinleyiciGeri {
             if (sesli) fazAyarla(Faz.BOS)
             return
         }
+        okunanMesaj = -1
         if (faz == Faz.ISLE || faz == Faz.KONUS) {
             aktifIsiDurdur()
             Ses.kes()

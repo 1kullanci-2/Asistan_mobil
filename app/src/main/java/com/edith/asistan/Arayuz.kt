@@ -377,9 +377,20 @@ fun Sohbet(mod: Modifier) {
         val sonAsistan = Motor.mesajlar.indexOfLast { !it.kullanici && !it.not }
         itemsIndexed(Motor.mesajlar) { i, m ->
             if (m.not) NotSatiri(m.metin) else if (m.kullanici) KullaniciBalonu(m.metin, 1f) { Motor.mesajMenusu = i }
-            else AsistanMesaji(m, tikla = { Motor.mesajMenusu = i }, hoparlor = i == sonAsistan && (Motor.faz == Faz.KONUS || Motor.sesKapaliMi()))
+            else {
+                val okuyor = Motor.faz == Faz.KONUS && (if (Motor.okunanMesaj >= 0) i == Motor.okunanMesaj else i == sonAsistan)
+                AsistanMesaji(m, okuyor, onSes = { if (okuyor) Motor.sesDuraklat() else Motor.mesajiOku(i) }, tikla = { Motor.mesajMenusu = i })
+            }
         }
-        if (akan) item { AsistanMetni(Motor.akanMetin, hoparlor = Motor.faz == Faz.KONUS) } else if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
+        if (akan) item {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    val okuyor = Motor.faz == Faz.KONUS && Motor.okunanMesaj < 0
+                    SesDugmesi(okuyor) { if (okuyor) Motor.sesDuraklat() }
+                }
+                AsistanMetni(Motor.akanMetin)
+            }
+        } else if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
         Motor.indirme?.let { t -> item { Text(t, color = VurguAcik, fontSize = 13.sp) } }
         Motor.hata?.let { h -> item { Text(h, color = HataAcik, fontSize = 13.sp) } }
     }
@@ -405,24 +416,25 @@ fun KullaniciBalonu(metin: String, alfa: Float, tikla: (() -> Unit)? = null) {
 }
 
 @Composable
-fun AsistanMetni(metin: String, hoparlor: Boolean = false) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SelectionContainer {
-            Text(metin, color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
-        }
-        if (hoparlor) HoparlorDugmesi()
+fun AsistanMetni(metin: String) {
+    SelectionContainer {
+        Text(metin, color = MetinKrem, fontFamily = FontFamily.Serif, fontSize = 17.sp, lineHeight = 27.sp)
     }
 }
 
-/** Sesli cevaplarda görünen hoparlör: varsayılan açık; kapatılırsa bu sohbette tekrar açılana kadar kapalı kalır. */
+/** Mesajın üstündeki ses düğmesi: o an okunan cevapta duraklat, diğerlerinde hoparlör (dokununca o mesaj yeniden okunur). */
 @Composable
-fun HoparlorDugmesi() {
-    val kapali = Motor.sesKapaliMi()
+fun SesDugmesi(okuyor: Boolean, tikla: () -> Unit) {
     Box(
-        Modifier.size(34.dp).clip(CircleShape).background(Yuzey).border(1.dp, YuzeyKenar, CircleShape)
-            .clickable { Motor.sesDegistir() },
+        Modifier.size(36.dp).clip(CircleShape).background(if (okuyor) Vurgu else Color.Transparent).clickable(onClick = tikla),
         contentAlignment = Alignment.Center
-    ) { Simge(if (kapali) "hoparlor_kapali" else "hoparlor", MetinKrem, Modifier.size(18.dp)) }
+    ) {
+        androidx.compose.animation.AnimatedContent(
+            targetState = okuyor,
+            transitionSpec = { (fadeIn(tween(140)) + scaleIn(initialScale = 0.6f)) togetherWith (fadeOut(tween(100)) + scaleOut(targetScale = 0.6f)) },
+            label = "ses"
+        ) { o -> Simge(if (o) "duraklat" else "hoparlor", if (o) KremAcik else SolukKrem, Modifier.size(if (o) 18.dp else 21.dp)) }
+    }
 }
 
 /** Düşünürken parlayan yazı; araç çalışırken hangi araç olduğu da görünür. */
@@ -440,10 +452,14 @@ fun Dusunuyor() {
 }
 
 @Composable
-fun AsistanMesaji(m: Mesaj, hoparlor: Boolean = false, tikla: () -> Unit = {}) {
-    Column(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = tikla), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (m.araclar.isNotEmpty()) AracSatiri(m.araclar)
-        AsistanMetni(m.metin, hoparlor)
+fun AsistanMesaji(m: Mesaj, okuyor: Boolean, onSes: () -> Unit, tikla: () -> Unit = {}) {
+    Column(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = tikla), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (m.araclar.isNotEmpty()) AracSatiri(m.araclar)
+            Spacer(Modifier.weight(1f))
+            SesDugmesi(okuyor, onSes)
+        }
+        AsistanMetni(m.metin)
     }
 }
 

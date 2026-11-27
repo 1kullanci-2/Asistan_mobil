@@ -85,19 +85,21 @@ fun Simge(tur: String, renk: Color, mod: Modifier = Modifier) {
                 p.lineTo(5f * u, 16f * u); p.lineTo(8f * u, 16f * u)
                 drawPath(p, renk, style = kalem)
             }
-            "model" -> { // yonga: model seçici
-                drawRoundRect(renk, Offset(7f * u, 7f * u), Size(10f * u, 10f * u), CornerRadius(2.2f * u), style = kalem)
-                for (t in listOf(9.5f, 14.5f)) {
-                    drawLine(renk, Offset(t * u, 3.5f * u), Offset(t * u, 7f * u), 1.7f * u, StrokeCap.Round)
-                    drawLine(renk, Offset(t * u, 17f * u), Offset(t * u, 20.5f * u), 1.7f * u, StrokeCap.Round)
-                    drawLine(renk, Offset(3.5f * u, t * u), Offset(7f * u, t * u), 1.7f * u, StrokeCap.Round)
-                    drawLine(renk, Offset(17f * u, t * u), Offset(20.5f * u, t * u), 1.7f * u, StrokeCap.Round)
-                }
-                drawCircle(renk, 1.5f * u, Offset(12f * u, 12f * u))
+            "model" -> { // ayar çubukları: model seçici
+                drawLine(renk, Offset(4f * u, 8f * u), Offset(20f * u, 8f * u), 1.9f * u, StrokeCap.Round)
+                drawLine(renk, Offset(4f * u, 16f * u), Offset(20f * u, 16f * u), 1.9f * u, StrokeCap.Round)
+                drawCircle(Color(0xFFC194A3), 2.6f * u, Offset(9f * u, 8f * u))
+                drawCircle(renk, 2.6f * u, Offset(9f * u, 8f * u), style = kalem)
+                drawCircle(Color(0xFFC194A3), 2.6f * u, Offset(15f * u, 16f * u))
+                drawCircle(renk, 2.6f * u, Offset(15f * u, 16f * u), style = kalem)
             }
             "kapat" -> {
                 drawLine(renk, Offset(6f * u, 6f * u), Offset(18f * u, 18f * u), 2.2f * u, StrokeCap.Round)
                 drawLine(renk, Offset(18f * u, 6f * u), Offset(6f * u, 18f * u), 2.2f * u, StrokeCap.Round)
+            }
+            "duraklat" -> {
+                drawRoundRect(renk, Offset(6.5f * u, 5f * u), Size(4f * u, 14f * u), CornerRadius(1.6f * u))
+                drawRoundRect(renk, Offset(13.5f * u, 5f * u), Size(4f * u, 14f * u), CornerRadius(1.6f * u))
             }
             "durdur" -> drawRoundRect(renk, Offset(5f * u, 5f * u), Size(14f * u, 14f * u), CornerRadius(3f * u))
             "klavye" -> {
