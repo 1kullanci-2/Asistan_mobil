@@ -479,13 +479,16 @@ object Motor : DinleyiciGeri {
                     parcalar.add(kalan.substring(0, bul.range.last + 1))
                     kalan = kalan.substring(bul.range.last + 1)
                 }
-                var siradaki = async(Dispatchers.IO) { Ses.sentez(ayarlar, parcalar.first()) }
-                for (n in parcalar.indices) {
-                    val pcm = siradaki.await()
-                    if (n + 1 < parcalar.size) { val c = parcalar[n + 1]; siradaki = async(Dispatchers.IO) { Ses.sentez(ayarlar, c) } }
-                    if (pcm != null) {
-                        if (faz != Faz.KONUS) fazAyarla(Faz.KONUS)
-                        Ses.cal(pcm)
+                // supervisorScope: ses üretimi hata verirse (kredi bitti, ağ yok) uygulamayı çökertmez, aşağıda yakalanır
+                kotlinx.coroutines.supervisorScope {
+                    var siradaki = async(Dispatchers.IO) { Ses.sentez(ayarlar, parcalar.first()) }
+                    for (n in parcalar.indices) {
+                        val pcm = siradaki.await()
+                        if (n + 1 < parcalar.size) { val c = parcalar[n + 1]; siradaki = async(Dispatchers.IO) { Ses.sentez(ayarlar, c) } }
+                        if (pcm != null) {
+                            if (faz != Faz.KONUS) fazAyarla(Faz.KONUS)
+                            Ses.cal(pcm)
+                        }
                     }
                 }
             } catch (e: CancellationException) {
