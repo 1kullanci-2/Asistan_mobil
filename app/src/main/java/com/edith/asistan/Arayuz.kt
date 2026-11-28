@@ -384,13 +384,20 @@ fun Sohbet(mod: Modifier) {
         }
         if (akan) item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (Motor.canliIslemler.isNotEmpty()) AracSatiri(Motor.canliIslemler, Motor.islemEtiket)
+                    Spacer(Modifier.weight(1f))
                     val okuyor = Motor.faz == Faz.KONUS && Motor.okunanMesaj < 0
                     SesDugmesi(okuyor) { if (okuyor) Motor.sesDuraklat() }
                 }
                 AsistanMetni(Motor.akanMetin)
             }
-        } else if (Motor.faz == Faz.ISLE) item { Dusunuyor() }
+        } else if (Motor.faz == Faz.ISLE) item {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (Motor.canliIslemler.isNotEmpty()) AracSatiri(Motor.canliIslemler, Motor.islemEtiket)
+                Dusunuyor()
+            }
+        }
         Motor.indirme?.let { t -> item { Text(t, color = VurguAcik, fontSize = 13.sp) } }
         Motor.hata?.let { h -> item { Text(h, color = HataAcik, fontSize = 13.sp) } }
     }
@@ -465,18 +472,18 @@ fun AsistanMesaji(m: Mesaj, okuyor: Boolean, onSes: () -> Unit, tikla: () -> Uni
 
 /** "İşlemler ⌄" satırı: dokununca kullanılan işlemler alttan açılan bir panelde listelenir. */
 @Composable
-fun AracSatiri(araclar: List<String>) {
+fun AracSatiri(araclar: List<String>, etiket: String = "") {
     Row(
         Modifier.clip(RoundedCornerShape(10.dp)).clickable { Motor.islemler = araclar }.padding(vertical = 4.dp, horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("İşlemler", color = SolukKrem, fontSize = 13.sp)
+        Text(etiket.ifBlank { "İşlemler" }, color = SolukKrem, fontSize = 13.sp)
         Spacer(Modifier.width(4.dp))
         Simge("ok_asagi", SolukKrem, Modifier.size(16.dp))
     }
 }
 
-private fun islemAdi(s: String): String =
+fun islemAdi(s: String): String = if (s == "web_ara") "Web'de arama yapıldı" else
     s.substringAfterLast("__").replace('_', ' ').trim().replaceFirstChar { it.uppercase() }
 
 /** İşlemler listesi: alttan açılır, her işlem ayrı bir satırda. */

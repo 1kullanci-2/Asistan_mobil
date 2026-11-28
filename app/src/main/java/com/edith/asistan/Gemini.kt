@@ -306,6 +306,61 @@ object Gemini {
         }.trim().take(1500)
     }
 
+    /** Uygulamanın kendi web araması: Gemini anahtarı varsa Google aramasıyla, yoksa DuckDuckGo ile. */
+    suspend fun webAra(ayar: Ayarlar, sorgu: String): String = withContext(Dispatchers.IO) {
+        if (sorgu.isBlank()) return@withContext "Arama sorgusu boş."
+        if (ayar.apiKey.isNotBlank()) {
+            try {
+                val govde = JSONObject()
+                    .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text",
+                        "Şu konuyu web'de ara ve bulduğun güncel bilgileri kısa, olgusal biçimde özetle: $sorgu")))))
+                    .put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
+                val model = ayar.servisModelleri("gemini").firstOrNull() ?: "gemini-flash-lite-latest"
+                val yanit = istekAt(ayar.apiKey, model, govde.toString())
+                val aday = yanit.optJSONArray("candidates")?.optJSONObject(0)
+                val p = aday?.optJSONObject("content")?.optJSONArray("parts")
+                val metin = buildString { if (p != null) for (i in 0 until p.length()) append(p.getJSONObject(i).optString("text")) }.trim()
+                val kaynak = aday?.optJSONObject("groundingMetadata")?.optJSONArray("groundingChunks")
+                val liste = buildList {
+                    if (kaynak != null) for (i in 0 until kaynak.length()) {
+                        val w = kaynak.getJSONObject(i).optJSONObject("web") ?: continue
+                        add(w.optString("title") + " - " + w.optString("uri"))
+                    }
+                }.distinct().take(5)
+                if (metin.isNotEmpty()) return@withContext metin + if (liste.isNotEmpty()) "\n\nKaynaklar:\n" + liste.joinToString("\n") else ""
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                UygulamaLog.kaydet(Motor.ctx, "Web arama (Gemini)", e)
+            }
+        }
+        try {
+            val istek = Request.Builder()
+                .url("https://html.duckduckgo.com/html/?q=" + java.net.URLEncoder.encode(sorgu, "UTF-8"))
+                .header("User-Agent", "Mozilla/5.0 (Android 10; Mobile) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
+                .build()
+            istemci.newCall(istek).execute().use { r ->
+                val s = r.body?.string().orEmpty()
+                val baslik = Regex("""class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
+                val ozet = Regex("""class="result__snippet"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
+                fun temiz(x: String) = android.text.Html.fromHtml(x.replace(Regex("<[^>]+>"), ""), android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                val b = baslik.findAll(s).toList()
+                val o = ozet.findAll(s).toList()
+                if (b.isEmpty()) return@withContext "Web aramasından sonuç alınamadı."
+                b.take(6).mapIndexed { i, m ->
+                    val ham = m.groupValues[1]
+                    val adres = Regex("uddg=([^&]+)").find(ham)?.groupValues?.get(1)?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ham
+                    "${i + 1}. ${temiz(m.groupValues[2])}\n${o.getOrNull(i)?.let { temiz(it.groupValues[1]) } ?: ""}\n$adres"
+                }.joinToString("\n\n")
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            UygulamaLog.kaydet(Motor.ctx, "Web arama", e)
+            "Web araması şu an yapılamadı."
+        }
+    }
+
     /** Anahtarın görebildiği, metin üretebilen Gemini modelleri. */
     suspend fun modeller(apiKey: String): List<String> = withContext(Dispatchers.IO) {
         val istek = Request.Builder().url("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200")

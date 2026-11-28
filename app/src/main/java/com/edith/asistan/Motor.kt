@@ -60,6 +60,8 @@ object Motor : DinleyiciGeri {
 
     // ── Sohbet ve genel durum
     val mesajlar = mutableStateListOf<Mesaj>()
+    var canliIslemler by mutableStateOf<List<String>>(emptyList())   // bu cevapta şimdiye kadar çalışan işlemler
+    var islemEtiket by mutableStateOf("")    // şu an çalışan işlemin adı; boşsa "İşlemler" görünür
     var adim by mutableStateOf("")           // "Araç çalışıyor · …" gibi anlık durum
     var akanMetin by mutableStateOf("")      // cevap yazılırken canlı görünen metin
     var menuAcik by mutableStateOf(false)
@@ -846,6 +848,7 @@ object Motor : DinleyiciGeri {
             var cevrimDisiKaldi = false
             var sonCevap = ""
             val kullanilan = linkedSetOf<String>()
+            if (aktif === kayit) { canliIslemler = emptyList(); islemEtiket = "" }
             val konus = sesli || !ayarlar.sadeceSesliKomutta
             val cumleler = Channel<String>(Channel.UNLIMITED)
             val sesler = Channel<ByteArray>(2)
@@ -857,6 +860,11 @@ object Motor : DinleyiciGeri {
             // Konuşma yalnızca sohbet ekrandayken ve kullanıcı o an uygulamadaysa / panel açıksa sürer.
             fun sesAcik() = konus && aktif === kayit && kayit.id !in sessiz && kayit.id !in sesKapaliSohbetler && (onde || panelGorunur || sesli)
             fun adimYaz(s: String) { if (aktif === kayit) adim = s }
+            fun islemBasla(gercek: String, etiket: String) {
+                kullanilan.add(gercek)
+                if (aktif === kayit) { canliIslemler = kullanilan.toList(); islemEtiket = etiket }
+            }
+            fun islemBitti() { if (aktif === kayit) islemEtiket = "" }
 
             fun cumleGonder(c: String) {
                 if (c.isBlank()) return
@@ -935,13 +943,22 @@ object Motor : DinleyiciGeri {
                             bildir = { n -> scope.launch { ekle(kayit, Mesaj(false, n, not = true)) } },
                             baslik = { b -> if (ilk && b.isNotBlank()) baslikAyarla(kayit, b) },
                             cagir = cagir@{ ad, args ->
+                                if (ad == "web_ara") {
+                                    islemBasla("web_ara", "Web'de aranıyor…")
+                                    adimYaz("Web'de aranıyor")
+                                    try {
+                                        return@cagir Gemini.webAra(ayarlar, args.optString("sorgu"))
+                                    } finally {
+                                        adimYaz(""); islemBitti()
+                                    }
+                                }
                                 val (ist, gercek, bag) = esle[ad] ?: return@cagir "Bilinmeyen araç: $ad"
                                 if (ayarlar.mcpSilmeOnayi && "sil" in gercek.lowercase().split("_")) {
                                     if (!onayIste("“$gercek” aracı çalıştırılsın mı? (silme işlemi)")) {
                                         return@cagir "Kullanıcı bu işlemi onaylamadı."
                                     }
                                 }
-                                kullanilan.add(gercek)
+                                islemBasla(gercek, islemAdi(gercek) + " çalışıyor…")
                                 adimYaz("Araç çalışıyor · $gercek")
                                 try {
                                     ist.cagir(gercek, args)
@@ -953,7 +970,7 @@ object Motor : DinleyiciGeri {
                                     val yeni = mcp[bag.id] ?: throw e
                                     yeni.cagir(gercek, args)
                                 } finally {
-                                    adimYaz("")
+                                    adimYaz(""); islemBitti()
                                 }
                             }
                         )
@@ -1241,6 +1258,15 @@ object Motor : DinleyiciGeri {
     private fun mcpAraclari(): Pair<List<GeminiArac>, Map<String, Triple<McpIstemci, String, Baglanti>>> {
         val liste = mutableListOf<GeminiArac>()
         val esle = mutableMapOf<String, Triple<McpIstemci, String, Baglanti>>()
+        liste.add(
+            GeminiArac(
+                "web_ara",
+                "İnternette güncel bilgi arar (haberler, fiyatlar, hava, spor, son gelişmeler vb.). Güncel ya da bilmediğin bir şey sorulduğunda kullan.",
+                JSONObject().put("type", "object")
+                    .put("properties", JSONObject().put("sorgu", JSONObject().put("type", "string").put("description", "Aranacak ifade")))
+                    .put("required", org.json.JSONArray().put("sorgu"))
+            )
+        )
         ayarlar.baglantilar.forEachIndexed { i, b ->
             if (!b.acik) return@forEachIndexed
             val ist = mcp[b.id] ?: return@forEachIndexed
